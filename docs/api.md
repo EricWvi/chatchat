@@ -6,7 +6,7 @@
 
 - 所有接口在 `/api/v1` 下，请求和响应都是 JSON（UTF-8）。时间用 RFC 3339 UTC，例如 `2026-10-26T08:00:00Z`。
 - 每个响应带 `Chatchat-Protocol: 1` 头。
-- ID 都是不透明字符串：chat `c_…`，参与者 `p_…`，消息 `m_…`，用户 token 记录 `t_…`。
+- ID 都是不透明字符串：用户 `u_…`，chat `c_…`，参与者 `p_…`，消息 `m_…`，用户 token 记录 `t_…`。
 - 接口按凭据分三组，互不通用：
 
 | 分组 | 路径前缀 | 凭据 |
@@ -28,16 +28,18 @@
 | 400 | `invalid_request` | 参数缺失或格式不对，`error` 说明哪个字段 |
 | 401 | `unauthenticated` | 缺少登录状态 / 用户 token，或 token 不存在 |
 | 401 | `token_revoked` | 用户 token 已吊销 |
-| 401 | `invalid_credentials` | 参与者不存在，或 secret 不匹配 |
+| 401 | `invalid_credentials` | CLI 参与者接口缺少凭据、参与者不存在，或 secret 不匹配 |
 | 401 | `chat_mismatch` | 凭据正确，但参与者属于另一个 chat |
 | 410 | `participation_left` | 凭据正确，参与者已退出 |
 | 410 | `chat_destroyed` | 凭据正确，chat 已销毁；账号接口中表示 chat 已销毁（如向已销毁的 chat `join`） |
-| 401 | `wrong_credential_type` | 用错了凭据类型，例如把用户 token 用在 CLI 参与者接口 |
+| 401 | `wrong_credential_type` | 用错了凭据类型：用户 token 或登录状态用在 CLI 参与者接口，参与凭据用在账号或网页接口，用户 token 用在网页接口或 token 管理，登录状态用在 `join` |
 | 403 | `forbidden` | 有身份但无权限，例如非创建者销毁 chat |
 | 403 | `untrusted_origin` | cookie 请求未通过同源检查 |
-| 404 | `chat_not_found` | 账号接口中 chat 不存在 |
+| 404 | `chat_not_found` | chat 不存在（账号接口、网页接口） |
+| 404 | `not_found` | 接口不存在，或要吊销的用户 token 不存在 |
 | 409 | `request_id_conflict` | 同一 `client_request_id` 携带了不同正文 |
-| 413 | `too_large` | 正文超过长度上限 |
+| 413 | `too_large` | 正文超过长度上限，或请求体超过 128 KiB |
+| 500 | `internal` | 服务器内部错误，详情只写服务端日志 |
 
 错误响应从不回显收到的凭据。`chat_mismatch`、`participation_left`、`chat_destroyed` 只在 secret 校验通过后返回，规则见 [design.md](design.md) 的「凭据错误」。
 
@@ -79,9 +81,9 @@
 
 只接受登录状态。
 
-- `GET /api/v1/tokens`：列出 `[{"token_id", "name", "created_at", "last_used_at"}]`，不含 token 本身。
-- `POST /api/v1/tokens` `{"name"}`：返回 `{"token_id", "name", "token": "cct_…", "created_at"}`，`token` 只出现这一次。
-- `DELETE /api/v1/tokens/{token_id}`：吊销，立即失效。
+- `GET /api/v1/tokens`：返回 `{"tokens": [{"token_id", "name", "created_at", "last_used_at"}]}`，新的在前，不含 token 本身和已吊销的 token。
+- `POST /api/v1/tokens` `{"name"}`（1–64 字符）：201，返回 `{"token_id", "name", "token": "cct_…", "created_at", "last_used_at"}`，`token` 只出现这一次。
+- `DELETE /api/v1/tokens/{token_id}`：吊销，立即失效，返回 204。不存在或已吊销返回 404 `not_found`。
 
 ### `POST /api/v1/chats`
 
@@ -97,20 +99,26 @@
 
 ### `GET /api/v1/chats`
 
-登录状态或用户 token。列出自己创建或参与过的 chat，含已销毁的，`?limit=&before=` 分页。进行中的在前，按最后一条消息时间倒序；已销毁的在后，按销毁时间倒序。
+登录状态或用户 token。列出自己创建或参与过的 chat，含已销毁的。进行中的在前，按最后一条消息时间（没有消息时按创建时间）倒序；已销毁的在后，按销毁时间倒序。
+
+分页：`?limit=`（默认 50，超过 200 按 200）和 `?cursor=`。响应的 `next_cursor` 不为 `null` 时，把它作为下一页的 `cursor`。
 
 ```json
 {"chats": [{
   "chat_id", "title", "created_by_me": true, "created_at", "expires_at",
   "online_count": 2, "active_count": 3, "last_message_at": "…", "idle_destroy_at": null,
   "destroyed_at": null, "destroy_reason": null
-}]}
+}], "next_cursor": null}
 ```
 
 - `active_count` 是未退出的参与者数。
 - `idle_destroy_at`：无人在线时预计空闲销毁的时间，有人在线时为 `null`。
 - `destroy_reason`：`creator`、`idle`、`expired`。
 - 已销毁的 chat 只返回 metadata，统计字段为 `null`。
+
+### `GET /api/v1/chats/{chat_id}`
+
+登录状态或用户 token。返回一个 chat，格式同列表中的一项。知道 chat ID 的登录用户都能查询（与能加入的范围一致），网站用它显示已销毁页的标题、原因和时间。不存在返回 404 `chat_not_found`。
 
 ### `GET /api/v1/participations`
 
@@ -159,7 +167,7 @@ Chatchat-Participation: p_…
 
 ```json
 {
-  "chat": {"chat_id", "title", "goal", "created_at", "expires_at", "latest_sequence": 57},
+  "chat": {"chat_id", "title", "goal", "created_by_me": false, "created_at", "expires_at", "idle_destroy_at": null, "latest_sequence": 57},
   "summary": {"revision": 3, "covers_through_sequence": 40, "content": "## 沟通目标\n…", "model": "deepseek-flash", "created_at": "…"},
   "summary_job": {"status": "idle", "last_failed_at": null},
   "participants": [
@@ -169,11 +177,11 @@ Chatchat-Participation: p_…
 }
 ```
 
-还没有摘要时 `summary` 为 `null`。恢复进展的做法：读 `summary`，再从 `covers_through_sequence`（没有摘要时为 0）开始读消息直到 `latest_sequence`。
+`created_by_me` 表示当前参与者所属用户是否是创建者；`idle_destroy_at` 同 chat 列表。还没有摘要时 `summary` 为 `null`。恢复进展的做法：读 `summary`，再从 `covers_through_sequence`（没有摘要时为 0）开始读消息直到 `latest_sequence`。
 
 ### `GET /api/v1/agent/chats/{chat_id}/messages`
 
-参数 `after_sequence`（默认 0）、`limit`（默认 50，最大 200）。返回 `sequence > after_sequence` 的消息，升序。
+参数 `after_sequence`（默认 0）、`limit`（默认 50，超过 200 按 200）。返回 `sequence > after_sequence` 的消息，升序。
 
 也可以改用 `before_sequence` 向前翻：返回 `sequence < before_sequence` 的最后 `limit` 条，仍按升序排列；`has_more` 表示更早处是否还有消息。两个参数不能同时给。
 
@@ -191,7 +199,7 @@ Chatchat-Participation: p_…
 
 ### `GET /api/v1/agent/chats/{chat_id}/messages/wait`
 
-参数 `after_sequence`（必填）、`limit`、`timeout_seconds`（默认且最大为 `wait_max_seconds`）。有新消息立即返回，格式同上；超时返回空的 `messages`。等待期间 chat 被销毁或参与者退出，立即返回 410 `chat_destroyed` 或 `participation_left`。
+参数 `after_sequence`（必填）、`limit`、`timeout_seconds`（默认 `wait_max_seconds`，更大的值按它处理；0 表示只检查一次）。有新消息立即返回，格式同上；超时返回空的 `messages`。等待期间 chat 被销毁或参与者退出，立即返回 410 `chat_destroyed` 或 `participation_left`。
 
 ### `POST /api/v1/agent/chats/{chat_id}/messages`
 
@@ -203,7 +211,7 @@ Chatchat-Participation: p_…
 
 ### `POST /api/v1/agent/chats/{chat_id}/propose-end`
 
-请求 `{"reason": "…"}`（可选）。记一条 `system` 消息，返回该消息。
+请求 `{"reason": "…"}`（可选，最多 500 字符）。记一条 `system` 消息，201 返回该消息。
 
 ### `POST /api/v1/agent/chats/{chat_id}/leave`
 
@@ -214,9 +222,9 @@ Chatchat-Participation: p_…
 只接受登录状态。发送者由后端按（当前用户, chat）确定。
 
 - `POST /api/v1/web/chats/{chat_id}/enter`：找到或创建本用户在该 chat 的网页参与者；已退出的恢复为在线。返回参与者对象。chat 已销毁返回 410 `chat_destroyed`。
-- `GET …/state`、`GET …/messages`、`GET …/messages/wait`、`POST …/messages`、`POST …/propose-end`、`POST …/leave`：同 CLI 参与者接口，路径前缀换成 `/api/v1/web/chats/{chat_id}`；尚未 `enter` 时返回 403 `forbidden`。
+- `GET …/state`、`GET …/messages`、`GET …/messages/wait`、`POST …/messages`、`POST …/propose-end`、`POST …/leave`：同 CLI 参与者接口，路径前缀换成 `/api/v1/web/chats/{chat_id}`；尚未 `enter` 时返回 403 `forbidden`，退出后返回 410 `participation_left`（重新 `enter` 即可恢复）。
 - 网页的 `messages/wait` 除了新消息，在摘要更新（含生成状态变化）或参与者状态变化时也会提前返回，响应多一个字段 `"changed": ["messages", "summary", "participants"]`，页面据此重新取 `state`。CLI 的 `wait` 只在有新消息时返回，避免 Agent 被无关变化唤醒。
-- `DELETE /api/v1/web/chats/{chat_id}`：销毁 chat，只有创建者可以。返回 204。
+- `DELETE /api/v1/web/chats/{chat_id}`：销毁 chat，只有创建者可以，其他人返回 403 `forbidden`。返回 204。
 
 ## CLI
 

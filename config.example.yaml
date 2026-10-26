@@ -1,0 +1,31 @@
+# HTTP listen address
+listen: ":36760"
+# Directory for the SQLite database
+data_dir: "./data"
+
+# Origin browsers use to reach this site. The OIDC redirect URI is
+# <public_url>/auth/callback and must be registered with the provider;
+# chat links handed out by the API start with it too.
+public_url: "https://chatchat.example.com"
+
+# Authelia (or any OIDC provider) confidential client.
+oidc:
+  issuer: "https://auth.example.com"
+  client_id: "chatchat"
+  # Prefer the CHATCHAT_OIDC_CLIENT_SECRET environment variable.
+  client_secret: ""
+
+# Central settings, handed to the CLI and the site by GET /api/v1/meta.
+# The values below are the defaults.
+# limits:
+#   presence_lease: 90s       # a participant is online this long after its last request
+#   idle_destroy_after: 30m   # destroy a chat with nobody online this long
+#   max_chat_lifetime: 24h    # destroy a chat this long after creation
+#   wait_max: 60s             # longest single wait; must be shorter than presence_lease
+#   page_size_default: 50
+#   page_size_max: 200
+#   summary_threshold: 20     # new text messages that trigger a summary
+
+# Local development only: skip OIDC and sign every browser request in as
+# this user. public_url may then be left out.
+# dev_user: "eric"

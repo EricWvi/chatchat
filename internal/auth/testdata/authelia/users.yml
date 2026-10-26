@@ -1,0 +1,12 @@
+# Both passwords are homepage-test-password.
+users:
+  alice:
+    disabled: false
+    displayname: Alice Test
+    password: '$pbkdf2-sha512$310000$RD3y5IOXIbMj7x8rPUOkzw$uw4qsJhRKSVL6Q58FT.YbH62NIwtHC6CRuGnnUAnPMj6Rn61oiEegwob8SmTBpXpELws2GKjFYvLerqUTR4V3Q'
+    email: alice@example.com
+  bob:
+    disabled: false
+    displayname: Bob Test
+    password: '$pbkdf2-sha512$310000$RD3y5IOXIbMj7x8rPUOkzw$uw4qsJhRKSVL6Q58FT.YbH62NIwtHC6CRuGnnUAnPMj6Rn61oiEegwob8SmTBpXpELws2GKjFYvLerqUTR4V3Q'
+    email: bob@example.com

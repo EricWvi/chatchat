@@ -1,0 +1,111 @@
+version: "3"
+
+# Local secrets such as CHATCHAT_OIDC_CLIENT_SECRET live in .env (git-ignored).
+dotenv: [".env"]
+
+tasks:
+  default:
+    cmds:
+      - task: list
+
+  list:
+    desc: List all tasks in the current project
+    cmds:
+      - task --list
+
+  ###################################################
+  ############## Install Dependencies ###############
+  ###################################################
+
+  install:go:
+    desc: Download Go module dependencies
+    cmds:
+      - go mod download
+
+  ###################################################
+  ############## Clean and Build Tasks ##############
+  ###################################################
+
+  build:
+    desc: Build the static release server binary (release/chatchat-server)
+    vars:
+      VERSION:
+        sh: git describe --tags --always --dirty 2>/dev/null || echo dev
+      COMMIT:
+        sh: git rev-parse --short HEAD 2>/dev/null || echo unknown
+    env:
+      CGO_ENABLED: "0"
+    cmds:
+      - go build -trimpath -ldflags "-s -w -X main.version={{.VERSION}} -X main.commit={{.COMMIT}}" -o release/chatchat-server ./cmd/chatchat-server
+
+  build:go:
+    desc: Compile all Go packages
+    env:
+      CGO_ENABLED: "0"
+    cmds:
+      - go build ./...
+
+  clean:
+    desc: Remove release binaries
+    cmds:
+      - rm -rf release
+
+  format:
+    desc: Format all Go sources
+    cmds:
+      - task: format:go
+
+  format:go:
+    desc: Format Go sources with gofmt
+    cmds:
+      - gofmt -w cmd internal frontend.go
+
+  lint:
+    desc: Run all linters
+    cmds:
+      - task: lint:go
+
+  lint:go:
+    desc: Check gofmt and run go vet, including the authelia-tagged tests
+    silent: true
+    cmds:
+      - |
+        unformatted=$(gofmt -l cmd internal frontend.go)
+        if [ -n "$unformatted" ]; then
+          echo "gofmt needed (run task format):"
+          echo "$unformatted"
+          exit 1
+        fi
+      - go vet ./...
+      - go vet -tags authelia ./internal/auth
+
+  test:
+    desc: Run all lint and unit tests (container tests are excluded)
+    cmds:
+      - task: lint
+      - task: test:go
+
+  test:go:
+    desc: Run Go unit and HTTP tests
+    env:
+      CGO_ENABLED: "0"
+    cmds:
+      - go test ./...
+
+  ###################################################
+  ################ Container Tests ##################
+  ###################################################
+
+  test:contract:
+    desc: Run the Authelia contract test using locally prepared images
+    cmds:
+      - go test -tags authelia ./internal/auth
+
+  ###################################################
+  ############# Run Development Servers #############
+  ###################################################
+
+  run:server:
+    desc: Run the chatchat server with config.yaml in the project root
+    cmds:
+      - go run ./cmd/chatchat-server {{.CLI_ARGS}}

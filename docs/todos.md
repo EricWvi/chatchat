@@ -25,25 +25,28 @@
 
 ## 阶段 1：服务端核心
 
-- [ ] 项目骨架：参照听写的 Go module、SQLite、Taskfile、配置加载（YAML + 环境变量覆盖密钥）、结构化日志（日志脱敏 token / secret）
-- [ ] 照搬听写的 OIDC 登录与会话（不含设备登录流程），保留 `dev_user` 本地开发模式
-- [ ] User 与用户 token：创建、列出、吊销；只存哈希，生成时展示一次
-- [ ] Chat：创建、查询、创建者销毁（级联删除消息、摘要，所有参与凭据失效）
-- [ ] Participation：区分 `web` / `cli` 两类；网页参与者按（用户, chat）唯一；CLI `join` 每次新建身份；secret 只在响应里返回一次，服务端存哈希；`leave` 立即失效
-- [ ] 鉴权：账号级接口认用户 token 或登录会话；CLI 参与级接口只认 `participation_id + secret` 且校验所属 chat，用户 token 不能替代；网页参与级接口只认登录会话，后端按（用户, chat）找到网页参与者
-- [ ] 消息：chat 内单调递增 `sequence`；`client_request_id` 幂等，同 ID 不同内容返回冲突
-- [ ] 读取：`after_sequence` 增量 + 有界分页；参与者列表与状态
-- [ ] `wait`：长轮询，有新消息或超时即返回；读取、等待续租 lease
-- [ ] 后台清理：lease 到期标离线；空闲到期和最长存活到期自动销毁；保留账号级历史 metadata
-- [ ] 测试：覆盖需求第九节的 1、3、4、5、6、9、10
+- [x] 项目骨架：参照听写的 Go module、SQLite、Taskfile、配置加载（YAML + 环境变量覆盖密钥）、结构化日志（只记方法、路径、状态码，不记头、查询串和请求体）
+- [x] 照搬听写的 OIDC 登录与会话（不含设备登录流程），保留 `dev_user` 本地开发模式；Authelia 契约测试一并搬来（`task test:contract`）
+- [x] User 与用户 token：创建、列出、吊销；只存哈希，生成时展示一次
+- [x] Chat：创建、查询、创建者销毁（删除消息，所有参与凭据失效；摘要在阶段 2 一并删除）
+- [x] Participation：区分 `web` / `cli` 两类；网页参与者按（用户, chat）唯一；CLI `join` 每次新建身份；secret 只在响应里返回一次，服务端存哈希；`leave` 立即失效
+- [x] 鉴权：账号级接口认用户 token 或登录状态；CLI 参与级接口只认 `participation_id + secret` 且校验所属 chat，用户 token 不能替代；网页参与级接口只认登录状态，后端按（用户, chat）找到网页参与者
+- [x] 消息：chat 内单调递增 `sequence`；`client_request_id` 幂等，同 ID 不同内容返回冲突
+- [x] 读取：`after_sequence` 增量、`before_sequence` 向前翻页；参与者列表与状态
+- [x] `wait`：长轮询，有新消息或超时即返回；网页版在参与者变化时也返回 `changed`；读取、等待续租 lease
+- [x] 后台清理：lease 到期通知网页刷新参与者；空闲到期和最长存活到期自动销毁；保留账号级历史 metadata
+- [x] 测试：覆盖需求第九节的 1、3、4、5、6、9、10（`internal/server/verify_test.go`）
+
+实现中补充到 `docs/api.md` 的接口细节：`GET /api/v1/chats/{chat_id}`（已销毁页用）、chat 列表改用 `cursor` / `next_cursor` 分页、`state.chat` 增加 `created_by_me` 和 `idle_destroy_at`、错误码 `not_found` 和 `internal`。
 
 ## 阶段 2：摘要（外部模型）
 
-- [ ] 摘要快照表：`revision`、`covers_through_sequence`、`content`、`model`、`created_at`；只追加，读取返回最新一份
+- [ ] 摘要快照表：`revision`、`covers_through_sequence`、`content`、`model`、`created_at`；只追加，读取返回最新一份；chat 销毁时与消息一起删除
 - [ ] 模型客户端：OpenAI 兼容接口，模型、地址、key 走配置；超时与重试
 - [ ] 生成：上一份摘要 + `(上一份 covers, 目标 sequence]` 的消息 → 新摘要；固定结构（目标、已确认事实和决定、分歧、未解决问题、下一步及负责人）
 - [ ] 提示词把聊天内容当数据处理，抵抗消息里的注入指令
 - [ ] 触发：新增消息达到阈值，或 leave 时存在未覆盖消息；阈值集中配置
+- [ ] 网页 `wait` 在摘要更新或生成状态变化时返回 `changed: ["summary"]`（通知通道 `notify.Summary` 已预留）
 - [ ] 串行化：每个 chat 同时只有一个生成任务；以预期 revision 提交，冲突则放弃重算；`covers_through_sequence` 不超过实际最大 sequence；chat 销毁时取消进行中的任务并丢弃结果
 - [ ] 失败处理：记录错误、退避重试；摘要缺失或落后时 Agent 仍能靠消息读取工作
 - [ ] 测试：并发触发不丢更新、不越界；用假模型验证「摘要 + 增量消息」能恢复进展（需求第九节 7、8）
