@@ -175,8 +175,9 @@ func (s *Store) ListUserChats(ctx context.Context, userID int64, lease time.Dura
 	return out, false, nil
 }
 
-// DestroyChat deletes the chat's messages and ends every participation;
-// their credentials stop working at once. The chat row stays as history.
+// DestroyChat deletes the chat's messages and summaries and ends every
+// participation; their credentials stop working at once. The chat row
+// stays as history.
 func (s *Store) DestroyChat(ctx context.Context, id, reason string) (Chat, error) {
 	var c Chat
 	err := s.inTx(ctx, func(tx *sql.Tx) error {
@@ -192,8 +193,10 @@ func destroyIn(ctx context.Context, tx *sql.Tx, id, reason string, now int64) (C
 	if err != nil {
 		return c, err
 	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM messages WHERE chat_id = ?`, id); err != nil {
-		return c, err
+	for _, table := range []string{"messages", "summaries"} {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM `+table+` WHERE chat_id = ?`, id); err != nil {
+			return c, err
+		}
 	}
 	if _, err := tx.ExecContext(ctx,
 		`UPDATE chats SET destroyed_at = ?, destroy_reason = ? WHERE id = ?`, now, reason, id); err != nil {

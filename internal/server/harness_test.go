@@ -51,6 +51,13 @@ func newHarness(t *testing.T) *harness {
 // newHarnessIn keeps the database in dir.
 func newHarnessIn(t *testing.T, dir string) *harness {
 	t.Helper()
+	return newHarnessWith(t, dir, Options{})
+}
+
+// newHarnessWith keeps the database in dir and adds opts, such as a
+// summary model, to the test defaults.
+func newHarnessWith(t *testing.T, dir string, opts Options) *harness {
+	t.Helper()
 	st, err := store.Open(dir)
 	if err != nil {
 		t.Fatal(err)
@@ -61,10 +68,13 @@ func newHarnessIn(t *testing.T, dir string) *harness {
 	// The provider is discovered lazily, so these tests never reach it.
 	authn := auth.New(st, auth.Config{PublicURL: origin, Issuer: "https://idp.invalid", ClientID: "x", ClientSecret: "y"})
 	web := fstest.MapFS{"index.html": {Data: []byte("<!doctype html><title>chatchat</title>")}}
-	srv, err := New(st, authn, web, Options{Version: "test", PublicURL: origin, Limits: config.DefaultLimits()})
+	opts.Version, opts.PublicURL, opts.Limits = "test", origin, config.DefaultLimits()
+	srv, err := New(t.Context(), st, authn, web, opts)
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Registered after the store's Close, so it runs first.
+	t.Cleanup(srv.Close)
 	return &harness{t: t, srv: srv, store: st, clock: clk}
 }
 

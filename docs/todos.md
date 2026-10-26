@@ -41,15 +41,17 @@
 
 ## 阶段 2：摘要（外部模型）
 
-- [ ] 摘要快照表：`revision`、`covers_through_sequence`、`content`、`model`、`created_at`；只追加，读取返回最新一份；chat 销毁时与消息一起删除
-- [ ] 模型客户端：OpenAI 兼容接口，模型、地址、key 走配置；超时与重试
-- [ ] 生成：上一份摘要 + `(上一份 covers, 目标 sequence]` 的消息 → 新摘要；固定结构（目标、已确认事实和决定、分歧、未解决问题、下一步及负责人）
-- [ ] 提示词把聊天内容当数据处理，抵抗消息里的注入指令
-- [ ] 触发：新增消息达到阈值，或 leave 时存在未覆盖消息；阈值集中配置
-- [ ] 网页 `wait` 在摘要更新或生成状态变化时返回 `changed: ["summary"]`（通知通道 `notify.Summary` 已预留）
-- [ ] 串行化：每个 chat 同时只有一个生成任务；以预期 revision 提交，冲突则放弃重算；`covers_through_sequence` 不超过实际最大 sequence；chat 销毁时取消进行中的任务并丢弃结果
-- [ ] 失败处理：记录错误、退避重试；摘要缺失或落后时 Agent 仍能靠消息读取工作
-- [ ] 测试：并发触发不丢更新、不越界；用假模型验证「摘要 + 增量消息」能恢复进展（需求第九节 7、8）
+- [x] 摘要快照表：`revision`、`covers_through_sequence`、`content`、`model`、`created_at`；只追加，读取返回最新一份；chat 销毁时与消息一起删除
+- [x] 模型客户端：OpenAI 兼容接口，配置 `summary` 段（地址、模型、key、`extra_body`、超时），key 可用 `CHATCHAT_SUMMARY_API_KEY` 覆盖；`dev_user` 模式下可不配，摘要关闭
+- [x] 生成：上一份摘要 + `(上一份 covers, 目标 sequence]` 的消息 → 新摘要；固定五节结构，输出不符合即视为失败；消息多时分批（200 条 / 60000 字符），每批单独写入一个 revision
+- [x] 提示词把聊天内容当数据处理：整体编码为 JSON 对象，系统提示要求不执行消息里的指令
+- [x] 触发：新增文字消息达到阈值，或 leave 时存在未覆盖的文字消息；失败后阈值从失败任务的目标位置重新计数；启动时重新判断所有存在的 chat
+- [x] 网页 `wait` 在摘要更新或生成状态变化时返回 `changed: ["summary"]`；CLI `wait` 不受影响
+- [x] 串行化：每个 chat 同时只有一个生成任务；以预期 revision 条件写入，冲突则放弃重新判断；`covers_through_sequence` 不超过实际最大 sequence；chat 销毁时取消进行中的任务，store 也拒绝写入
+- [x] 失败处理：退避重试最多 3 次（5s / 20s / 60s），state 返回 `summary_job`（`idle` / `pending` / `failed`、`last_failed_at`），不返回、也不记录模型原始错误内容
+- [x] 测试：并发触发不丢更新、不越界；用假模型验证「摘要 + 增量消息」能恢复进展（需求第九节 7、8，`internal/server/verify_test.go`）；其余在 `internal/server/summary_test.go`、`internal/summary`
+
+实现中定下的细节（已写进 `docs/design.md`）：每批单独写入 revision；失败后阈值重新计数；任务状态只在进程内保存，重启后为 `idle`；`last_failed_at` 成功后保留；日志不记模型接口的错误正文。
 
 ## 阶段 3：CLI
 

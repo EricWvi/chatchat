@@ -26,6 +26,22 @@ oidc:
 #   page_size_max: 200
 #   summary_threshold: 20     # new text messages that trigger a summary
 
+# The chat model that writes summaries. Any OpenAI-compatible chat
+# completions API works. Required unless dev_user is set; without an API
+# key in dev mode summaries are off.
+summary:
+  base_url: "https://api.deepseek.com"
+  model: "deepseek-flash"
+  # Prefer the CHATCHAT_SUMMARY_API_KEY environment variable.
+  api_key: ""
+  # Longest single model call.
+  # timeout: 3m
+  # Vendor parameters merged into the request body as they are; model,
+  # messages and stream are set by the server.
+  # extra_body:
+  #   thinking:
+  #     type: disabled
+
 # Local development only: skip OIDC and sign every browser request in as
 # this user. public_url may then be left out.
 # dev_user: "eric"

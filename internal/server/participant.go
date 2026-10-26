@@ -120,6 +120,13 @@ func (s *Server) getState(w http.ResponseWriter, r *http.Request, p store.Partic
 	if err != nil {
 		return err
 	}
+	var sum *summaryView
+	if latest, err := s.store.LatestSummary(ctx, p.ChatID); err == nil {
+		sum = viewSummary(latest)
+	} else if !errors.Is(err, store.ErrNotFound) {
+		return err
+	}
+	job := s.summary.Status(p.ChatID)
 	now := s.store.Now().UnixMilli()
 	participants := make([]participantView, len(ps))
 	for i, q := range ps {
@@ -131,9 +138,8 @@ func (s *Server) getState(w http.ResponseWriter, r *http.Request, p store.Partic
 			"created_at": jsonTime(ci.CreatedAt), "expires_at": jsonTime(ci.ExpiresAt),
 			"idle_destroy_at": s.idleDestroyAt(ci), "latest_sequence": ci.LastSequence,
 		},
-		// Summaries arrive in phase 2.
-		"summary":      nil,
-		"summary_job":  map[string]any{"status": "idle", "last_failed_at": nil},
+		"summary":      sum,
+		"summary_job":  map[string]any{"status": job.Status, "last_failed_at": jsonTime(job.LastFailedAt)},
 		"participants": participants,
 		"you":          map[string]string{"participation_id": p.ID},
 	})
@@ -288,6 +294,7 @@ func (s *Server) sendMessage(w http.ResponseWriter, r *http.Request, p store.Par
 	if created {
 		status = http.StatusCreated
 		s.hub.Notify(p.ChatID, notify.Messages)
+		s.summary.Trigger(p.ChatID, false)
 	}
 	writeJSON(w, status, viewMessage(m))
 	return nil
@@ -315,6 +322,7 @@ func (s *Server) leave(w http.ResponseWriter, r *http.Request, p store.Participa
 		return err
 	}
 	s.hub.Notify(p.ChatID, notify.Messages|notify.Participants)
+	s.summary.Trigger(p.ChatID, true)
 	writeJSON(w, http.StatusOK, map[string]any{"participation_id": p.ID, "left_at": jsonTime(p.LeftAt)})
 	return nil
 }
@@ -355,6 +363,7 @@ func (s *Server) destroyChat(w http.ResponseWriter, r *http.Request) error {
 	if _, err := s.store.DestroyChat(r.Context(), c.ID, store.DestroyByCreator); err != nil {
 		return err
 	}
+	s.summary.Forget(c.ID)
 	s.hub.Notify(c.ID, notify.Destroyed)
 	w.WriteHeader(http.StatusNoContent)
 	return nil

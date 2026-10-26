@@ -108,6 +108,19 @@ var migrations = []migration{
 	CREATE UNIQUE INDEX messages_request ON messages (participation_id, client_request_id)
 		WHERE client_request_id IS NOT NULL;
 	`),
+	execSQL(`
+	-- Summary snapshots, append-only. Each covers the messages up to
+	-- covers_through_sequence and is deleted with the chat's messages.
+	CREATE TABLE summaries (
+		chat_id                 TEXT    NOT NULL REFERENCES chats (id),
+		revision                INTEGER NOT NULL,
+		covers_through_sequence INTEGER NOT NULL,
+		content                 TEXT    NOT NULL,
+		model                   TEXT    NOT NULL,
+		created_at              INTEGER NOT NULL,
+		PRIMARY KEY (chat_id, revision)
+	);
+	`),
 }
 
 func migrate(db *sql.DB) error {

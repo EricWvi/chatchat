@@ -14,9 +14,12 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// ClientSecretEnv overrides the OIDC client secret so it can stay out of
+// Environment variables that override secrets so they can stay out of
 // the config file.
-const ClientSecretEnv = "CHATCHAT_OIDC_CLIENT_SECRET"
+const (
+	ClientSecretEnv  = "CHATCHAT_OIDC_CLIENT_SECRET"
+	SummaryAPIKeyEnv = "CHATCHAT_SUMMARY_API_KEY"
+)
 
 // Config is the application configuration.
 type Config struct {
@@ -31,8 +34,9 @@ type Config struct {
 	OIDC      OIDC   `yaml:"oidc"`
 	// DevUser, when set, signs every browser request in as this local user
 	// and disables OIDC. For local development only.
-	DevUser string `yaml:"dev_user"`
-	Limits  Limits `yaml:"limits"`
+	DevUser string  `yaml:"dev_user"`
+	Limits  Limits  `yaml:"limits"`
+	Summary Summary `yaml:"summary"`
 }
 
 // OIDC configures the identity provider (Authelia).
@@ -41,6 +45,26 @@ type OIDC struct {
 	ClientID     string `yaml:"client_id"`
 	ClientSecret string `yaml:"client_secret"`
 }
+
+// Summary configures the chat model that writes summaries. Any
+// OpenAI-compatible chat completions API works.
+type Summary struct {
+	// BaseURL is the API root, e.g. "https://api.deepseek.com"; requests go
+	// to <base_url>/chat/completions.
+	BaseURL string `yaml:"base_url"`
+	Model   string `yaml:"model"`
+	APIKey  string `yaml:"api_key"`
+	// ExtraBody is merged into every request body as it is, for vendor
+	// parameters such as DeepSeek's thinking switch. The standard fields
+	// (model, messages, stream) win over it.
+	ExtraBody map[string]any `yaml:"extra_body"`
+	// Timeout caps a single model call.
+	Timeout time.Duration `yaml:"timeout"`
+}
+
+// Enabled reports whether summaries can be generated. Without an API key
+// they are off, which only dev mode allows.
+func (s Summary) Enabled() bool { return s.APIKey != "" }
 
 // Limits are the central settings that clients receive from
 // GET /api/v1/meta instead of hard-coding them.
@@ -81,6 +105,11 @@ func Default() Config {
 		Listen:  ":36760",
 		DataDir: "./data",
 		Limits:  DefaultLimits(),
+		Summary: Summary{
+			BaseURL: "https://api.deepseek.com",
+			Model:   "deepseek-flash",
+			Timeout: 3 * time.Minute,
+		},
 	}
 }
 
@@ -101,8 +130,13 @@ func Load(path string) (Config, error) {
 			return cfg, fmt.Errorf("parse config %s: %w", path, err)
 		}
 	}
-	if v := os.Getenv(ClientSecretEnv); v != "" {
-		cfg.OIDC.ClientSecret = v
+	for env, field := range map[string]*string{
+		ClientSecretEnv:  &cfg.OIDC.ClientSecret,
+		SummaryAPIKeyEnv: &cfg.Summary.APIKey,
+	} {
+		if v := os.Getenv(env); v != "" {
+			*field = v
+		}
 	}
 	return cfg, cfg.validate()
 }
@@ -124,11 +158,23 @@ func (c Config) validate() error {
 			return errors.New("config: public_url must be an origin such as https://chatchat.example.com")
 		}
 	}
-	if c.DevUser != "" {
-		return nil
-	}
-	if c.OIDC.Issuer == "" || c.OIDC.ClientID == "" || c.OIDC.ClientSecret == "" {
+	if c.DevUser == "" && (c.OIDC.Issuer == "" || c.OIDC.ClientID == "" || c.OIDC.ClientSecret == "") {
 		return fmt.Errorf("config: oidc.issuer, oidc.client_id and oidc.client_secret (or %s) are required unless dev_user is set", ClientSecretEnv)
+	}
+	return c.Summary.validate(c.DevUser != "")
+}
+
+func (s Summary) validate(dev bool) error {
+	u, err := url.Parse(s.BaseURL)
+	switch {
+	case err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "":
+		return errors.New("config: summary.base_url must be an http(s) URL such as https://api.deepseek.com")
+	case s.Model == "":
+		return errors.New("config: summary.model must not be empty")
+	case s.Timeout <= 0:
+		return errors.New("config: summary.timeout must be positive")
+	case s.APIKey == "" && !dev:
+		return fmt.Errorf("config: summary.api_key (or %s) is required unless dev_user is set", SummaryAPIKeyEnv)
 	}
 	return nil
 }

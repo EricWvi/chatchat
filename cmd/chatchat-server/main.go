@@ -19,6 +19,7 @@ import (
 	"chatchat/internal/config"
 	"chatchat/internal/server"
 	"chatchat/internal/store"
+	"chatchat/internal/summary"
 )
 
 // Set at build time with -ldflags "-X main.version=... -X main.commit=...".
@@ -67,20 +68,28 @@ func run(configPath string) error {
 		ClientSecret: cfg.OIDC.ClientSecret,
 		DevUser:      cfg.DevUser,
 	})
-	srv, err := server.New(st, authn, chatchat.Frontend(), server.Options{
-		Version: version, PublicURL: cfg.PublicURL, Limits: cfg.Limits,
+	var model summary.Model
+	if sc := cfg.Summary; sc.Enabled() {
+		model = summary.NewClient(sc.BaseURL, sc.Model, sc.APIKey, sc.ExtraBody, sc.Timeout)
+	} else {
+		slog.Warn("no summary API key: summaries are off", "env", config.SummaryAPIKeyEnv)
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	srv, err := server.New(ctx, st, authn, chatchat.Frontend(), server.Options{
+		Version: version, PublicURL: cfg.PublicURL, Limits: cfg.Limits, Model: model,
 	})
 	if err != nil {
 		return err
 	}
+	// Deferred after the store's Close, so it runs first.
+	defer srv.Close()
 	httpSrv := &http.Server{
 		Addr:              cfg.Listen,
 		Handler:           srv,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	go srv.RunSweeper(ctx, sweepInterval)
 
 	errc := make(chan error, 1)

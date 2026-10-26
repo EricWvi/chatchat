@@ -3,6 +3,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -17,6 +18,7 @@ import (
 	"chatchat/internal/config"
 	"chatchat/internal/notify"
 	"chatchat/internal/store"
+	"chatchat/internal/summary"
 )
 
 // ProtocolVersion is the version of the structured protocol the CLI checks.
@@ -29,6 +31,11 @@ type Options struct {
 	// from the request (dev mode).
 	PublicURL string
 	Limits    config.Limits
+	// Model writes summaries; nil turns them off.
+	Model summary.Model
+	// Summary tunes summary jobs; the zero value means
+	// summary.DefaultOptions with Limits.SummaryThreshold.
+	Summary summary.Options
 }
 
 // Server is the HTTP handler for auth, the API and the frontend.
@@ -36,6 +43,7 @@ type Server struct {
 	store   *store.Store
 	auth    *auth.Service
 	hub     *notify.Hub
+	summary *summary.Runner
 	opts    Options
 	handler http.Handler
 
@@ -43,11 +51,20 @@ type Server struct {
 	lastSweep time.Time
 }
 
-// New returns the server. web is the built frontend.
-func New(st *store.Store, authn *auth.Service, web fs.FS, opts Options) (*Server, error) {
-	s := &Server{store: st, auth: authn, hub: notify.NewHub(), opts: opts}
+// New returns the server. web is the built frontend. Summary jobs left
+// over from before a restart start at once; Close stops them.
+func New(ctx context.Context, st *store.Store, authn *auth.Service, web fs.FS, opts Options) (*Server, error) {
 	static, err := newStatic(web)
 	if err != nil {
+		return nil, err
+	}
+	if opts.Summary.Threshold == 0 {
+		opts.Summary = summary.DefaultOptions(opts.Limits.SummaryThreshold)
+	}
+	hub := notify.NewHub()
+	s := &Server{store: st, auth: authn, hub: hub, summary: summary.NewRunner(st, hub, opts.Model, opts.Summary), opts: opts}
+	if err := s.summary.Resume(ctx); err != nil {
+		s.Close()
 		return nil, err
 	}
 
@@ -98,6 +115,9 @@ func New(st *store.Store, authn *auth.Service, web fs.FS, opts Options) (*Server
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) { s.handler.ServeHTTP(w, r) }
+
+// Close stops the summary jobs; call it before closing the store.
+func (s *Server) Close() { s.summary.Close() }
 
 func (s *Server) getMeta(w http.ResponseWriter, r *http.Request) error {
 	l := s.opts.Limits

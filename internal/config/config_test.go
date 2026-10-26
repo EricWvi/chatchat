@@ -9,11 +9,12 @@ import (
 	"time"
 )
 
-// write saves a config file and clears the secret environment variable,
+// write saves a config file and clears the secret environment variables,
 // which `task` loads from .env, so tests only see their own values.
 func write(t *testing.T, content string) string {
 	t.Helper()
 	t.Setenv(ClientSecretEnv, "")
+	t.Setenv(SummaryAPIKeyEnv, "")
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
@@ -27,6 +28,8 @@ oidc:
   issuer: https://auth.test
   client_id: chatchat
   client_secret: secret
+summary:
+  api_key: model-key
 `
 
 func TestLoadRequiresAuthentication(t *testing.T) {
@@ -46,6 +49,7 @@ func TestLoadOIDC(t *testing.T) {
 	want.Listen = ":9000"
 	want.PublicURL = "https://chatchat.test"
 	want.OIDC = OIDC{Issuer: "https://auth.test", ClientID: "chatchat", ClientSecret: "secret"}
+	want.Summary.APIKey = "model-key"
 	if !reflect.DeepEqual(cfg, want) {
 		t.Fatalf("got %+v, want %+v", cfg, want)
 	}
@@ -60,6 +64,45 @@ func TestLoadSecretFromEnv(t *testing.T) {
 	}
 	if cfg.OIDC.ClientSecret != "oidc-env" {
 		t.Fatalf("secret = %q", cfg.OIDC.ClientSecret)
+	}
+
+	path = write(t, strings.Replace(validOIDC, "  api_key: model-key\n", "", 1))
+	if _, err := Load(path); err == nil || !strings.Contains(err.Error(), SummaryAPIKeyEnv) {
+		t.Fatalf("err = %v, want missing model key", err)
+	}
+	t.Setenv(SummaryAPIKeyEnv, "model-env")
+	cfg, err = Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Summary.APIKey != "model-env" || !cfg.Summary.Enabled() {
+		t.Fatalf("summary = %+v", cfg.Summary)
+	}
+}
+
+func TestLoadSummary(t *testing.T) {
+	cfg, err := Load(write(t, `dev_user: eric
+summary:
+  base_url: https://api.example.com/v1
+  model: m
+  timeout: 30s
+  extra_body:
+    thinking:
+      type: disabled
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := Summary{
+		BaseURL: "https://api.example.com/v1", Model: "m", Timeout: 30 * time.Second,
+		ExtraBody: map[string]any{"thinking": map[string]any{"type": "disabled"}},
+	}
+	if !reflect.DeepEqual(cfg.Summary, want) {
+		t.Fatalf("summary = %+v, want %+v", cfg.Summary, want)
+	}
+	// Dev mode may run without a model; summaries are then off.
+	if cfg.Summary.Enabled() {
+		t.Fatal("summary enabled without a key")
 	}
 }
 
@@ -114,6 +157,9 @@ func TestLoadRejectsInvalidValues(t *testing.T) {
 		"dev_user: eric\nlimits:\n  wait_max: 90s\n",
 		"dev_user: eric\nlimits:\n  page_size_default: 300\n",
 		"dev_user: eric\nlimits:\n  presence_lease: 0s\n",
+		"dev_user: eric\nsummary:\n  base_url: api.deepseek.com\n",
+		"dev_user: eric\nsummary:\n  model: \"\"\n",
+		"dev_user: eric\nsummary:\n  timeout: 0s\n",
 	} {
 		if _, err := Load(write(t, content)); err == nil {
 			t.Errorf("expected error for:\n%s", content)

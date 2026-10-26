@@ -136,3 +136,18 @@ func viewMessages(ms []store.Message) []messageView {
 	}
 	return out
 }
+
+type summaryView struct {
+	Revision      int64    `json:"revision"`
+	CoversThrough int64    `json:"covers_through_sequence"`
+	Content       string   `json:"content"`
+	Model         string   `json:"model"`
+	CreatedAt     jsonTime `json:"created_at"`
+}
+
+func viewSummary(s store.Summary) *summaryView {
+	return &summaryView{
+		Revision: s.Revision, CoversThrough: s.CoversThrough, Content: s.Content,
+		Model: s.Model, CreatedAt: jsonTime(s.CreatedAt),
+	}
+}

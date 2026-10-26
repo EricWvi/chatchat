@@ -19,6 +19,7 @@ func (s *Server) Sweep(ctx context.Context) error {
 	}
 	for _, c := range destroyed {
 		slog.Info("chat destroyed", "chat_id", c.ID, "reason", c.DestroyReason)
+		s.summary.Forget(c.ID)
 		s.hub.Notify(c.ID, notify.Destroyed)
 	}
 

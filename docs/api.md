@@ -177,7 +177,7 @@ Chatchat-Participation: p_…
 }
 ```
 
-`created_by_me` 表示当前参与者所属用户是否是创建者；`idle_destroy_at` 同 chat 列表。还没有摘要时 `summary` 为 `null`。恢复进展的做法：读 `summary`，再从 `covers_through_sequence`（没有摘要时为 0）开始读消息直到 `latest_sequence`。
+`created_by_me` 表示当前参与者所属用户是否是创建者；`idle_destroy_at` 同 chat 列表。还没有摘要时 `summary` 为 `null`。`summary_job.status`：`pending` 正在生成，`failed` 最近一次任务失败、会在下次满足条件时重试，`idle` 其余情况；`last_failed_at` 是最近一次任务失败的时间，没有失败过为 `null`，成功后也保留。恢复进展的做法：读 `summary`，再从 `covers_through_sequence`（没有摘要时为 0）开始读消息直到 `latest_sequence`。
 
 ### `GET /api/v1/agent/chats/{chat_id}/messages`
 

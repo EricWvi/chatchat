@@ -1,11 +1,12 @@
 package server
 
 // Tests for the checks that the requirements (section 9) demand of the
-// server. Items 2, 7 and 8 belong to the CLI and the summary phase.
+// server. Item 2 belongs to the CLI.
 
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -15,6 +16,9 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"chatchat/internal/store"
+	"chatchat/internal/summary"
 )
 
 // 1. Joining the same chat twice with the same user token gives two
@@ -360,4 +364,163 @@ func (l lockedWriter) Write(p []byte) (int, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.w.Write(p)
+}
+
+// 7. Concurrent summary updates do not silently overwrite one another.
+func TestConcurrentSummariesDoNotOverwrite(t *testing.T) {
+	model := &fakeModel{delay: 3 * time.Millisecond}
+	h := summaryHarness(t, model)
+	alice := h.account("alice")
+	chat := h.createChat(alice, "t")
+	var agents []cred
+	for i := range 4 {
+		agents = append(agents, h.join(alice, chat, fmt.Sprint("agent", i)))
+	}
+
+	// Triggers pile up while summaries are being written.
+	var wg sync.WaitGroup
+	for _, a := range agents {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := range 25 {
+				if r := h.send(a, fmt.Sprint(a.DisplayName, "-", i), ""); r.ResponseRecorder.Code != http.StatusCreated {
+					t.Errorf("send = %d %s", r.ResponseRecorder.Code, r.Body)
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	h.expect(h.agent(agents[0], "POST", "/leave", ""), http.StatusOK, "")
+	// The leave asks for every text message to be covered; the leave
+	// itself may stay uncovered if a running job got there first.
+	var lastText, latest int64
+	for _, m := range h.messages(chat) {
+		if m.Kind == store.KindText {
+			lastText = m.Sequence
+		}
+		latest = m.Sequence
+	}
+	var s stateSummary
+	h.eventually("summary of every text message", func() bool {
+		s = h.summaryState(agents[1])
+		return s.Summary != nil && s.Summary.CoversThrough >= lastText && s.Job.Status == "idle"
+	})
+
+	model.mu.Lock()
+	defer model.mu.Unlock()
+	if model.overlap {
+		t.Fatal("two summary jobs ran for the chat at once")
+	}
+	// Every call built on the summary the previous call wrote and started
+	// right after it, and every result was kept.
+	if len(model.calls) < 2 || int(s.Summary.Revision) != len(model.calls) {
+		t.Fatalf("revision %d after %d calls", s.Summary.Revision, len(model.calls))
+	}
+	var covered int64
+	for i, in := range model.calls {
+		if in.Messages[0].Sequence != covered+1 || (i > 0) != (in.Previous != "") {
+			t.Fatalf("call %d starts at %d, previous covers %d", i, in.Messages[0].Sequence, covered)
+		}
+		covered = in.Messages[len(in.Messages)-1].Sequence
+	}
+	// No text message was lost or counted twice along the way.
+	if got, want := len(decisions(s.Summary.Content)), len(h.textMessages(chat)); got != want {
+		t.Fatalf("summary lists %d of %d messages", got, want)
+	}
+
+	// Two writers building on the same revision: exactly one wins.
+	h.send(agents[1], "late", "")
+	var wins, conflicts int
+	var mu sync.Mutex
+	for range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := h.store.AppendSummary(t.Context(), chat, s.Summary.Revision, latest+1, "x", "m")
+			mu.Lock()
+			defer mu.Unlock()
+			switch {
+			case err == nil:
+				wins++
+			case errors.Is(err, store.ErrSummaryConflict):
+				conflicts++
+			default:
+				t.Error(err)
+			}
+		}()
+	}
+	wg.Wait()
+	if wins != 1 || conflicts != 7 {
+		t.Fatalf("wins %d, conflicts %d", wins, conflicts)
+	}
+}
+
+// 8. The latest summary plus the messages after it are enough to catch up
+// on the conversation.
+func TestSummaryAndLaterMessagesRecoverProgress(t *testing.T) {
+	model := &fakeModel{}
+	h := summaryHarness(t, model)
+	alice := h.account("alice")
+	bob := h.account("bob")
+	chat := h.createChat(alice, "重构讨论")
+	h.expect(h.web(alice, chat, "POST", "/enter", ""), http.StatusOK, "")
+	a := h.join(alice, chat, "Claude")
+	b := h.join(bob, chat, "Codex")
+	for i := range 4 {
+		h.send(a, fmt.Sprint("Claude 提议 ", i), "")
+		h.send(b, fmt.Sprint("Codex 回应 ", i), "")
+		h.expect(h.web(alice, chat, "POST", "/messages", fmt.Sprintf(`{"text":"Eric 确认 %d"}`, i)), http.StatusCreated, "")
+	}
+	// 12 text messages at a threshold of 3: summaries settle with fewer
+	// than three text messages left over.
+	latest := int64(len(h.messages(chat)))
+	h.eventually("summary of the discussion", func() bool {
+		s := h.summaryState(a)
+		return s.Summary != nil && s.Job.Status == "idle" && latest-s.Summary.CoversThrough < 3
+	})
+	// Hold the model so these stay after the latest summary.
+	model.set(func(f *fakeModel) { f.gate = make(chan struct{}) })
+	h.send(a, "还有一点没说", "")
+	h.send(b, "我来补充", "")
+	h.send(b, "就这些", "")
+
+	// A newcomer only reads the summary and what follows it.
+	c := h.join(bob, chat, "Late Agent")
+	s := h.summaryState(c)
+	if s.Summary == nil || s.Summary.CoversThrough >= s.Chat.LatestSequence {
+		t.Fatalf("state = %+v", s)
+	}
+	var progress []string
+	for _, line := range decisions(s.Summary.Content) {
+		var seq int64
+		fmt.Sscanf(line, "- #%d", &seq)
+		if seq > s.Summary.CoversThrough {
+			t.Fatalf("summary covers #%d beyond %d", seq, s.Summary.CoversThrough)
+		}
+		_, text, _ := strings.Cut(line, ": ")
+		progress = append(progress, text)
+	}
+	after := s.Summary.CoversThrough
+	for after < s.Chat.LatestSequence {
+		r := h.agent(c, "GET", fmt.Sprintf("/messages?after_sequence=%d&limit=2", after), "")
+		h.expect(r, http.StatusOK, "")
+		var page struct {
+			Messages []messageView `json:"messages"`
+		}
+		json.Unmarshal(r.Body.Bytes(), &page)
+		for _, m := range page.Messages {
+			if m.Kind == store.KindText {
+				progress = append(progress, m.Text)
+			}
+			after = m.Sequence
+		}
+	}
+	if got, want := strings.Join(progress, "|"), strings.Join(h.textMessages(chat), "|"); got != want {
+		t.Fatalf("recovered\n%s\nwant\n%s", got, want)
+	}
+	// The summary names speakers so same-named participants stay apart.
+	if speaker := summary.Speaker(store.Message{DisplayName: "Claude", ParticipationID: a.ParticipationID}); !strings.Contains(s.Summary.Content, speaker) {
+		t.Fatalf("summary does not name %s:\n%s", speaker, s.Summary.Content)
+	}
 }
