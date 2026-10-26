@@ -97,13 +97,20 @@
 
 ### `GET /api/v1/chats`
 
-登录状态或用户 token。列出自己创建或参与过的 chat，含已销毁的，按创建时间倒序，`?limit=&before=` 分页。
+登录状态或用户 token。列出自己创建或参与过的 chat，含已销毁的，`?limit=&before=` 分页。进行中的在前，按最后一条消息时间倒序；已销毁的在后，按销毁时间倒序。
 
 ```json
-{"chats": [{"chat_id", "title", "created_by_me": true, "created_at", "expires_at", "destroyed_at": null, "destroy_reason": null}]}
+{"chats": [{
+  "chat_id", "title", "created_by_me": true, "created_at", "expires_at",
+  "online_count": 2, "active_count": 3, "last_message_at": "…", "idle_destroy_at": null,
+  "destroyed_at": null, "destroy_reason": null
+}]}
 ```
 
-`destroy_reason`：`creator`、`idle`、`expired`。
+- `active_count` 是未退出的参与者数。
+- `idle_destroy_at`：无人在线时预计空闲销毁的时间，有人在线时为 `null`。
+- `destroy_reason`：`creator`、`idle`、`expired`。
+- 已销毁的 chat 只返回 metadata，统计字段为 `null`。
 
 ### `GET /api/v1/participations`
 
@@ -168,6 +175,8 @@ Chatchat-Participation: p_…
 
 参数 `after_sequence`（默认 0）、`limit`（默认 50，最大 200）。返回 `sequence > after_sequence` 的消息，升序。
 
+也可以改用 `before_sequence` 向前翻：返回 `sequence < before_sequence` 的最后 `limit` 条，仍按升序排列；`has_more` 表示更早处是否还有消息。两个参数不能同时给。
+
 ```json
 {
   "messages": [
@@ -206,6 +215,7 @@ Chatchat-Participation: p_…
 
 - `POST /api/v1/web/chats/{chat_id}/enter`：找到或创建本用户在该 chat 的网页参与者；已退出的恢复为在线。返回参与者对象。chat 已销毁返回 410 `chat_destroyed`。
 - `GET …/state`、`GET …/messages`、`GET …/messages/wait`、`POST …/messages`、`POST …/propose-end`、`POST …/leave`：同 CLI 参与者接口，路径前缀换成 `/api/v1/web/chats/{chat_id}`；尚未 `enter` 时返回 403 `forbidden`。
+- 网页的 `messages/wait` 除了新消息，在摘要更新（含生成状态变化）或参与者状态变化时也会提前返回，响应多一个字段 `"changed": ["messages", "summary", "participants"]`，页面据此重新取 `state`。CLI 的 `wait` 只在有新消息时返回，避免 Agent 被无关变化唤醒。
 - `DELETE /api/v1/web/chats/{chat_id}`：销毁 chat，只有创建者可以。返回 204。
 
 ## CLI
