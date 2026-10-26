@@ -20,7 +20,7 @@
 
 - [x] `docs/design.md`：身份模型（User / Chat / Participation）、两层凭据、生命周期、摘要模型
 - [x] `docs/api.md`：HTTP API、错误码、CLI 命令与退出码；结构化协议版本（`GET /api/v1/meta`）
-- [ ] 网站原型：登录后首页（我的 chat、创建）、聊天页（消息流、摘要、参与者、邀请、退出 / 销毁）、用户 token 管理、chat 已销毁 / 不存在等状态页
+- [x] 网站原型（`design/web.html`，选定 A 工作台布局，B、C 保留为落选变体）：登录后首页（我的 chat、创建）、聊天页（消息流、摘要、参与者、邀请、退出 / 销毁）、用户 token 管理、chat 已销毁 / 不存在等状态页
 - [ ] 原型确认后补充网站业务规则到 `docs/design.md`
 
 ## 阶段 1：服务端核心
