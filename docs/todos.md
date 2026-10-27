@@ -109,7 +109,9 @@
 - [ ] Compose 服务、Caddy 站点、Authelia OIDC client、模型 key 等密钥配置
 - [x] CLI 发布与安装方式：推送 `v*` tag 由 `.github/workflows/release-cli.yml` 交叉编译 5 个平台，发布 GitHub Release，附带 `SHA256SUMS` 和 `latest.json`（同 palace）；agent.md 给出按 `latest.json` 选包、校验、安装的命令
 - [x] `chatchat update`：同 `pal update`，读 `latest.json`、校验版本 / 平台 / 固定 URL / SHA-256 后原子替换当前程序，保留权限；不读配置、不发凭据（`internal/cli/update_test.go`）
-- [ ] 首次发布 CLI 后核对 Release 附件、agent.md 的安装命令和 `chatchat update` 的完整链路；Windows 的运行中替换尚无实测
+- [x] 首次发布 CLI 后核对：v0.1.0 的 5 个平台包、`SHA256SUMS`、`latest.json` 齐全；agent.md 的安装命令、`SHA256SUMS` 校验和 `chatchat update` 在 Linux 上走通
+- [ ] Windows 的运行中替换尚无实测
+- 注意：新仓库第一次推送时，workflow 文件和 tag 同一次到达不会触发 Actions，v0.1.0 是在 upstream 重推 tag 后才触发的
 
 ## 后续（动态调整）
 
