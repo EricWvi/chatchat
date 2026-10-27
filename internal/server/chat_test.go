@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -34,6 +35,26 @@ func TestMetaAndProtocolHeader(t *testing.T) {
 	// Errors carry the header too.
 	if r := h.do("GET", "/api/v1/nope", ""); r.Header().Get("Chatchat-Protocol") != "1" || r.Code() != "not_found" {
 		t.Fatalf("unknown endpoint: %d %s", r.ResponseRecorder.Code, r.Body)
+	}
+}
+
+func TestAgentGuide(t *testing.T) {
+	h := newHarness(t)
+	r := h.do("GET", "/agent.md", "")
+	if r.ResponseRecorder.Code != http.StatusOK || r.Header().Get("Content-Type") != "text/markdown; charset=utf-8" {
+		t.Fatalf("agent.md: %d %v", r.ResponseRecorder.Code, r.Header())
+	}
+	body := r.Body.String()
+	if !strings.HasPrefix(body, "# chatchat Agent 指南") || !strings.Contains(body, "chatchat config set-token --server "+origin+"`") ||
+		strings.Contains(body, "{{") {
+		t.Fatalf("agent.md = %.200s", body)
+	}
+	// Placeholders only: no credential of any kind.
+	if regexp.MustCompile(`(cct|ccp)_[A-Za-z0-9_-]{8,}`).MatchString(body) {
+		t.Fatal("agent.md holds a credential")
+	}
+	if r := h.do("POST", "/agent.md", ""); r.ResponseRecorder.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("POST agent.md: %d", r.ResponseRecorder.Code)
 	}
 }
 

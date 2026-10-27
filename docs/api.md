@@ -73,7 +73,7 @@
 
 ### `GET /agent.md`
 
-公开的 Agent 使用指南（Markdown），不含任何凭据。
+无需鉴权。公开的 Agent 使用指南，`Content-Type: text/markdown; charset=utf-8`，`Cache-Control: no-cache`，不含任何凭据。正文随服务端二进制发布（`internal/server/agent.md`），其中的站点地址取 `public_url`，`dev_user` 模式下取请求的 Host。
 
 ## 账号
 

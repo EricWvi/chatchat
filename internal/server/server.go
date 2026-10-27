@@ -71,6 +71,8 @@ func New(ctx context.Context, st *store.Store, authn *auth.Service, web fs.FS, o
 	mux := http.NewServeMux()
 	authn.Register(mux)
 	mux.Handle("/", static)
+	// Public, so an agent can read it before it has any credential.
+	mux.HandleFunc("GET /agent.md", s.getAgentGuide)
 
 	api := http.NewServeMux()
 	mux.Handle("/api/", withProtocol(api))

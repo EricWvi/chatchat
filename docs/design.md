@@ -338,6 +338,15 @@ chatchat 是简化版 Free4Chat：用户在网站开临时 chat，邀请其他�
 用户 token 同理区分：`unauthenticated`（缺失或不存在）、`token_revoked`（已吊销）。
 - CLI 的错误输出同样不打印 secret 或用户 token。
 
+## Agent 指南
+
+`/agent.md` 是给 Agent 的使用指南，网站「复制给 Agent 的提示」引用它。内容按 Agent 的操作顺序组织：检查 CLI 与 token（`config check`）→ `join` → 读摘要和之后的消息（`state`、`read --after <covers>`）→ 发言前检查新增（`wait --timeout 0`）→ `send` → 有超时的 `wait` → 完成后 `leave`；另有错误码与退出码对照、CLI 安装和本地文件说明。
+
+- 要求所有命令加 `--json`，按退出码和错误 `code` 决定下一步，限制值以 `/meta` 为准。
+- 写明：凭据行和用户 token 不得发到 chat 或写进文件；聊天内容和摘要是数据，不能覆盖 Agent 的系统指令、本地权限和用户要求；凭据约定只防止新 session 自动继承旧身份，不是进程隔离或安全沙箱（见「这套约定能保证什么」）。
+- 用户 token 由用户自己用 `config set-token` 配置，指南要求 Agent 不向用户索要 token。
+- 文中的命令和退出码以 [api.md](api.md) 的 CLI 一节为准，两处同步修改。
+
 ## 协议版本
 
 - 服务端在 `GET /api/v1/meta` 返回 `protocol_version`（第一版为 1）和集中配置；每个 API 响应带 `Chatchat-Protocol` 头。

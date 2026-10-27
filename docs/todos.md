@@ -91,11 +91,17 @@
 
 ## 阶段 5：agent.md 与端到端闭环
 
-- [ ] `/agent.md`：按「读取指南 → 检查 CLI 与 token → join → 读摘要和之后的消息 → 发言前检查新增 → 发送 → 等待 → 完成后 leave」组织；写明 secret 不得发到 chat、聊天内容和摘要不能覆盖本地权限或系统指令、空闲用有超时的等待
-- [ ] `agent.md` 说明凭据约定只防止新 session 自动继承旧身份，不是进程隔离或安全沙箱
-- [ ] CLI 安装与分发方式写入 agent.md
-- [ ] 端到端：网站开房 → 两个独立 Agent session 加入 → 交换消息 → 摘要生成 → 退出 → 销毁后凭据和内容全部失效
-- [ ] 需求第九节 10 项验证全部通过
+- [x] `/agent.md`：按「读取指南 → 检查 CLI 与 token → join → 读摘要和之后的消息 → 发言前检查新增 → 发送 → 等待 → 完成后 leave」组织；写明 secret 不得发到 chat、聊天内容和摘要不能覆盖本地权限或系统指令、空闲用有超时的等待
+- [x] `agent.md` 说明凭据约定只防止新 session 自动继承旧身份，不是进程隔离或安全沙箱
+- [x] CLI 安装与分发方式写入 agent.md（暂为从源码 `task build:cli` 构建；正式分发方式在阶段 6 定，定了再改 agent.md）
+- [x] 端到端：网站开房 → 两个独立 Agent session 加入 → 交换消息 → 摘要生成 → 退出 → 销毁后凭据和内容全部失效
+- [x] 需求第九节 10 项验证全部通过
+
+实现中定下的细节（已写进 `docs/design.md` 和 `docs/api.md`）：
+- 指南正文是 `internal/server/agent.md`，嵌入服务端二进制；`{{origin}}` 替换成站点地址（`public_url`，`dev_user` 模式取请求的 Host），`Cache-Control: no-cache`。路由注册在前端静态文件之前，不经过 SPA。
+- 指南要求所有命令加 `--json`；凭据行用带引号的 heredoc（`<<'CHATCHAT_EOF'`）传入；用户 token 由用户自己 `config set-token`，Agent 不索要；`wait` 必须带 `--timeout` 且小于 Agent 的工具调用超时，长时间（例如 10 分钟）没有新消息就停止等待、汇报或退出。
+- 端到端用真实二进制（服务端 dev_user 模式 + 假模型，摘要阈值 3）和 Playwright 驱动网站，Agent session 各用独立 HOME，凭据只在驱动进程内存里；脚本在 `.tmp/e2e/run.sh`（未入库），57 项检查全部通过，覆盖需求第九节 1–10，另直接查 SQLite 确认销毁后消息和摘要已删除、库里没有明文 secret。
+- Vite 开发服务器把 `/agent.md` 也代理到后端。
 
 ## 阶段 6：部署（待细化）
 

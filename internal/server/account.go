@@ -159,11 +159,16 @@ func (s *Server) createChat(w http.ResponseWriter, r *http.Request) error {
 
 // chatURL is the link that invites people to the chat.
 func (s *Server) chatURL(r *http.Request, chatID string) string {
-	origin := strings.TrimSuffix(s.opts.PublicURL, "/")
-	if origin == "" {
-		origin = "http://" + r.Host
+	return s.origin(r) + "/c/" + chatID
+}
+
+// origin is the site origin: the configured public URL, or in dev mode
+// the request's host.
+func (s *Server) origin(r *http.Request) string {
+	if o := strings.TrimSuffix(s.opts.PublicURL, "/"); o != "" {
+		return o
 	}
-	return origin + "/c/" + chatID
+	return "http://" + r.Host
 }
 
 func (s *Server) listChats(w http.ResponseWriter, r *http.Request) error {

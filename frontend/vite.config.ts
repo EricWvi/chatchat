@@ -4,7 +4,8 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
 
-// In development the Go server runs on :36760 and owns /api and /auth.
+// In development the Go server runs on :36760 and owns /api, /auth and
+// /agent.md.
 const backend = process.env.CHATCHAT_BACKEND ?? "http://localhost:36760";
 
 // emptyOutDir wipes dist/.gitkeep, which go:embed needs in a fresh clone.
@@ -25,6 +26,7 @@ export default defineConfig({
     proxy: {
       "/api": backend,
       "/auth": backend,
+      "/agent.md": backend,
     },
   },
   build: {
