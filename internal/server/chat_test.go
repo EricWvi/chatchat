@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"testing"
@@ -417,5 +418,44 @@ func TestWebWaitReportsChanges(t *testing.T) {
 	r := h.web(alice, chat, "GET", "/messages/wait?after_sequence=3&timeout_seconds=0", "")
 	if fmt.Sprint(r.JSON()["changed"]) != "[]" {
 		t.Fatalf("timeout = %s", r.Body)
+	}
+}
+
+// A change made while the page was not waiting is reported by its next
+// wait, which passes the state_version it has seen.
+func TestWebWaitReportsChangesSinceVersion(t *testing.T) {
+	h := newHarness(t)
+	alice := h.account("alice")
+	chat := h.createChat(alice, "t")
+	h.expect(h.web(alice, chat, "POST", "/enter", ""), http.StatusOK, "")
+	st := h.web(alice, chat, "GET", "/state", "")
+	h.expect(st, http.StatusOK, "")
+	seen := st.JSON()["state_version"].(string)
+	waitSince := func(version string) map[string]any {
+		t.Helper()
+		r := h.web(alice, chat, "GET", "/messages/wait?after_sequence=1&timeout_seconds=0&state_version="+url.QueryEscape(version), "")
+		h.expect(r, http.StatusOK, "")
+		return r.JSON()
+	}
+
+	got := waitSince(seen)
+	if fmt.Sprint(got["changed"]) != "[]" || got["state_version"] != seen {
+		t.Fatalf("nothing changed = %v", got)
+	}
+
+	// Claude joins between two waits: a message and a participant change.
+	h.join(alice, chat, "Claude")
+	got = waitSince(seen)
+	if fmt.Sprint(got["changed"]) != "[messages participants]" || got["state_version"] == seen {
+		t.Fatalf("join = %v", got)
+	}
+	seen = got["state_version"].(string)
+	if got := waitSince(seen); fmt.Sprint(got["changed"]) != "[messages]" {
+		t.Fatalf("after catching up on participants = %v", got)
+	}
+
+	// A version from another process means everything may have changed.
+	if got := waitSince("old.0.0"); fmt.Sprint(got["changed"]) != "[messages summary participants]" {
+		t.Fatalf("foreign version = %v", got)
 	}
 }

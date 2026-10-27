@@ -17,10 +17,22 @@ tasks:
   ############## Install Dependencies ###############
   ###################################################
 
+  install:
+    desc: Install Go and frontend dependencies
+    cmds:
+      - task: install:go
+      - task: install:frontend
+
   install:go:
     desc: Download Go module dependencies
     cmds:
       - go mod download
+
+  install:frontend:
+    desc: Install locked frontend dependencies (Node 24+)
+    dir: frontend
+    cmds:
+      - npm ci
 
   ###################################################
   ############## Clean and Build Tasks ##############
@@ -33,7 +45,7 @@ tasks:
       - task: build:cli
 
   build:server:
-    desc: Build the static release server binary (release/chatchat-server)
+    desc: Build the static release server binary with the frontend embedded (release/chatchat-server)
     vars:
       VERSION:
         sh: git describe --tags --always --dirty 2>/dev/null || echo dev
@@ -42,7 +54,14 @@ tasks:
     env:
       CGO_ENABLED: "0"
     cmds:
+      - task: build:frontend
       - go build -trimpath -ldflags "-s -w -X main.version={{.VERSION}} -X main.commit={{.COMMIT}}" -o release/chatchat-server ./cmd/chatchat-server
+
+  build:frontend:
+    desc: Build the frontend static dist that the server embeds
+    dir: frontend
+    cmds:
+      - npm run build
 
   build:cli:
     desc: Build the static release CLI binary (release/chatchat)
@@ -62,9 +81,10 @@ tasks:
       - go build ./...
 
   clean:
-    desc: Remove release binaries
+    desc: Remove release binaries and the built frontend dist
     cmds:
       - rm -rf release
+      - find frontend/dist -mindepth 1 ! -name .gitkeep -delete
 
   format:
     desc: Format all Go sources
@@ -80,6 +100,13 @@ tasks:
     desc: Run all linters
     cmds:
       - task: lint:go
+      - task: lint:frontend
+
+  lint:frontend:
+    desc: Typecheck frontend source
+    dir: frontend
+    cmds:
+      - npm run typecheck
 
   lint:go:
     desc: Check gofmt and run go vet, including the authelia-tagged tests
@@ -125,6 +152,12 @@ tasks:
     desc: Run the chatchat server with config.yaml in the project root
     cmds:
       - go run ./cmd/chatchat-server {{.CLI_ARGS}}
+
+  run:web:
+    desc: Start the Vite frontend development server (proxies /api and /auth to :36760)
+    dir: frontend
+    cmds:
+      - npm run dev
 
   run:cli:
     desc: Run the chatchat CLI, passing arguments after --

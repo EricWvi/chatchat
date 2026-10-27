@@ -10,11 +10,13 @@ Prefer the smallest relevant task while iterating, and run `task test` before
 considering a change complete. `task` loads secrets from `.env`; never print
 config values or environment variables that may hold them.
 
+- Install Go and frontend dependencies (Node 24+): `task install`
 - Format Go sources: `task format`
-- Go gofmt check and vet: `task lint:go`
+- Go gofmt check and vet: `task lint:go`; frontend typecheck: `task lint:frontend`
 - Go tests: `task test:go`
 - All lint and unit tests: `task test`
 - Authelia contract test (needs a container socket and local images): `task test:contract`
-- Release binaries (static, `CGO_ENABLED=0`): `task build`, or one of `task build:server` / `task build:cli`
+- Release binaries (static, `CGO_ENABLED=0`): `task build`, or one of `task build:server` (builds and embeds the frontend) / `task build:cli`
 - Local server with `config.yaml` (set `dev_user` to skip OIDC): `task run:server`
+- Frontend dev server with hot reload against the local server: `task run:web`
 - CLI from source: `task run:cli -- <args>`

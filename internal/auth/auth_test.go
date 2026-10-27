@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"chatchat/internal/store"
@@ -87,5 +88,23 @@ func TestLogoutChecksOrigin(t *testing.T) {
 	h.ServeHTTP(rec, req)
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("status = %d", rec.Code)
+	}
+}
+
+func TestLoginReturnsOnlyToLocalPaths(t *testing.T) {
+	_, h := newService(t, Config{DevUser: "eric"})
+	for next, want := range map[string]string{
+		"/c/c_abc":           "/c/c_abc",
+		"":                   "/",
+		"https://evil.test/": "/",
+		"//evil.test/":       "/",
+		"/\\evil.test":       "/",
+		"c/relative":         "/",
+		"/tokens?x=1":        "/tokens?x=1",
+	} {
+		rec := serve(h, "GET", "/auth/login?next="+url.QueryEscape(next))
+		if got := rec.Header().Get("Location"); rec.Code != http.StatusFound || got != want {
+			t.Errorf("next %q: status %d, location %q, want %q", next, rec.Code, got, want)
+		}
 	}
 }

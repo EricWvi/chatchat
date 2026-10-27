@@ -43,6 +43,10 @@
 
 错误响应从不回显收到的凭据。`chat_mismatch`、`participation_left`、`chat_destroyed` 只在 secret 校验通过后返回，规则见 [design.md](design.md) 的「凭据错误」。
 
+## 登录
+
+沿用听写：`GET /auth/login` 跳转到统一认证，`GET /auth/callback` 完成登录，`POST /auth/logout` 只退出当前浏览器。`/auth/login?next=/c/c_…` 登录后回到原页面；`next` 只接受本站路径，其他值回到首页。
+
 ## 公共
 
 ### `GET /api/v1/meta`
@@ -173,11 +177,12 @@ Chatchat-Participation: p_…
   "participants": [
     {"participation_id", "kind": "cli", "display_name", "status": "online", "joined_at", "left_at", "last_seen_at"}
   ],
-  "you": {"participation_id": "p_…"}
+  "you": {"participation_id": "p_…"},
+  "state_version": "…"
 }
 ```
 
-`created_by_me` 表示当前参与者所属用户是否是创建者；`idle_destroy_at` 同 chat 列表。还没有摘要时 `summary` 为 `null`。`summary_job.status`：`pending` 正在生成，`failed` 最近一次任务失败、会在下次满足条件时重试，`idle` 其余情况；`last_failed_at` 是最近一次任务失败的时间，没有失败过为 `null`，成功后也保留。恢复进展的做法：读 `summary`，再从 `covers_through_sequence`（没有摘要时为 0）开始读消息直到 `latest_sequence`。
+`created_by_me` 表示当前参与者所属用户是否是创建者；`idle_destroy_at` 同 chat 列表。还没有摘要时 `summary` 为 `null`。`summary_job.status`：`pending` 正在生成，`failed` 最近一次任务失败、会在下次满足条件时重试，`idle` 其余情况；`last_failed_at` 是最近一次任务失败的时间，没有失败过为 `null`，成功后也保留。`state_version` 是不透明的版本标记，在读取状态之前取得，摘要（含生成状态）或参与者变化后就会不同；网页用它让 `wait` 报告两次等待之间的变化，CLI 可以忽略。服务端重启后版本从头计数，旧版本按「全部可能已变」处理。恢复进展的做法：读 `summary`，再从 `covers_through_sequence`（没有摘要时为 0）开始读消息直到 `latest_sequence`。
 
 ### `GET /api/v1/agent/chats/{chat_id}/messages`
 
@@ -223,7 +228,7 @@ Chatchat-Participation: p_…
 
 - `POST /api/v1/web/chats/{chat_id}/enter`：找到或创建本用户在该 chat 的网页参与者；已退出的恢复为在线。返回参与者对象。chat 已销毁返回 410 `chat_destroyed`。
 - `GET …/state`、`GET …/messages`、`GET …/messages/wait`、`POST …/messages`、`POST …/propose-end`、`POST …/leave`：同 CLI 参与者接口，路径前缀换成 `/api/v1/web/chats/{chat_id}`；尚未 `enter` 时返回 403 `forbidden`，退出后返回 410 `participation_left`（重新 `enter` 即可恢复）。
-- 网页的 `messages/wait` 除了新消息，在摘要更新（含生成状态变化）或参与者状态变化时也会提前返回，响应多一个字段 `"changed": ["messages", "summary", "participants"]`，页面据此重新取 `state`。CLI 的 `wait` 只在有新消息时返回，避免 Agent 被无关变化唤醒。
+- 网页的 `messages/wait` 除了新消息，在摘要更新（含生成状态变化）或参与者状态变化时也会提前返回，响应多两个字段：`"changed": ["messages", "summary", "participants"]` 和当前的 `state_version`，页面据此重新取 `state`。请求可以带 `state_version`（上一次 `state` 或 `wait` 返回的值）：自那个版本之后摘要或参与者有变化时，立即返回并在 `changed` 里报告，因此两次等待之间的变化不会漏掉。CLI 的 `wait` 只在有新消息时返回，避免 Agent 被无关变化唤醒。
 - `DELETE /api/v1/web/chats/{chat_id}`：销毁 chat，只有创建者可以，其他人返回 403 `forbidden`。返回 204。
 
 ## CLI

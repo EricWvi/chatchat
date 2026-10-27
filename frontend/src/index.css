@@ -1,0 +1,284 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/*
+ * Tokens follow design/web.html (layout A). The look is Slack's: a light
+ * grey frame with white rounded panels floating on it, flat messages
+ * without bubbles, bold names, rounded-square avatars. Purple only marks
+ * selection and emphasis; the primary action is near-black. Shapes follow
+ * claude.ai: half-pixel translucent hairlines and large faint shadows.
+ * Colours follow the system theme.
+ */
+:root {
+  color-scheme: light dark;
+
+  --bg: #f3f3f4;
+  --surface: #ffffff;
+  --ink: #1d1c1d;
+  --ink-2: #616061;
+  --ink-3: #9a999c;
+  --line: #e8e8e9;
+  --hover: #f8f8f8;
+  --selected: #f1f1f2;
+  --chip: #f1f1f2;
+  --accent: #9b51e0;
+  --accent-soft: #f4ebfc;
+  --link: #1264a3;
+  --primary: #1d1c1d;
+  --primary-hover: #3a393b;
+  --on-primary: #ffffff;
+  --danger: #e01e5a;
+  --danger-soft: #fdecf1;
+  --online: #2bac76;
+  --summary: color-mix(in oklch, var(--accent) 5%, #fff);
+  --summary-line: color-mix(in oklch, var(--accent) 20%, var(--line));
+  --hairline: color-mix(in oklch, var(--ink) 15%, transparent);
+  --hairline-strong: color-mix(in oklch, var(--ink) 28%, transparent);
+  /* Sidebar rows sit on the frame, so they darken it rather than use --hover. */
+  --row-hover: color-mix(in oklch, var(--bg), var(--ink) 4%);
+  --row-current: color-mix(in oklch, var(--bg), var(--ink) 7%);
+  --scrim: rgb(0 0 0 / 0.3);
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.04);
+  --shadow-panel: 0 0.25rem 1.25rem rgb(0 0 0 / 0.035);
+  --shadow-input: 0 0.25rem 1.25rem rgb(0 0 0 / 0.035);
+  --shadow-input-hover: 0 0.25rem 1.25rem rgb(0 0 0 / 0.075);
+  --shadow-md: 0 0.25rem 1.25rem rgb(0 0 0 / 0.08);
+
+  /* Avatar tints, picked by participant ID. */
+  --tint-1: #fbe69b;
+  --tint-2: #ffd5bd;
+  --tint-3: #b6c4f4;
+  --tint-4: #a8d9f1;
+  --tint-5: #c6eac9;
+  --tint-6: #f8c8da;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121214;
+    --surface: #1c1c1f;
+    --ink: #e8e8ea;
+    --ink-2: #a3a3a8;
+    --ink-3: #6e6e74;
+    --line: #2c2c30;
+    --hover: #232327;
+    --selected: #2a2a2e;
+    --chip: #2a2a2e;
+    --accent: #b47ef0;
+    --accent-soft: #2e2440;
+    --link: #4ea3e8;
+    --primary: #e8e8ea;
+    --primary-hover: #ffffff;
+    --on-primary: #1c1c1f;
+    --danger: #f2557f;
+    --danger-soft: #3a1f29;
+    --online: #3cc48c;
+    --summary: color-mix(in oklch, var(--accent) 8%, var(--surface));
+    --summary-line: color-mix(in oklch, var(--accent) 26%, var(--line));
+    --scrim: rgb(0 0 0 / 0.5);
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-panel: 0 0.25rem 1.25rem rgb(0 0 0 / 0.25);
+    --shadow-input: 0 0.25rem 1.25rem rgb(0 0 0 / 0.3);
+    --shadow-input-hover: 0 0.25rem 1.25rem rgb(0 0 0 / 0.45);
+    --shadow-md: 0 0.25rem 1.25rem rgb(0 0 0 / 0.5);
+  }
+}
+
+@theme inline {
+  --font-sans: Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  /*
+   * No mono face carries CJK glyphs, and the generic monospace family falls
+   * back to SimSun on Chinese Windows, so name the sans CJK faces before it.
+   */
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, "PingFang SC", "Microsoft YaHei", monospace;
+
+  --radius-lg: 20px;
+  --radius-panel: 16px;
+  --radius-card: 14px;
+  --radius-field: 10px;
+  --radius-sm: 8px;
+
+  --shadow-sm: var(--shadow-sm);
+  --shadow-panel: var(--shadow-panel);
+  --shadow-input: var(--shadow-input);
+  --shadow-input-hover: var(--shadow-input-hover);
+  --shadow-md: var(--shadow-md);
+
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-hover: var(--hover);
+  --color-selected: var(--selected);
+  --color-chip: var(--chip);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-link: var(--link);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-on-primary: var(--on-primary);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-online: var(--online);
+  --color-summary: var(--summary);
+  --color-summary-line: var(--summary-line);
+  --color-hairline: var(--hairline);
+  --color-hairline-strong: var(--hairline-strong);
+  --color-row-hover: var(--row-hover);
+  --color-row-current: var(--row-current);
+  --color-scrim: var(--scrim);
+
+  --animate-pulse-dot: pulse-dot 1.2s infinite;
+  @keyframes pulse-dot {
+    50% {
+      opacity: 0.25;
+    }
+  }
+}
+
+@layer base {
+  * {
+    border-color: var(--line);
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-bg font-sans text-ink antialiased;
+    font-size: 15px;
+    line-height: 1.55;
+  }
+  :focus {
+    outline: none;
+  }
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  textarea {
+    resize: none;
+  }
+}
+
+/*
+ * Scrollbars stay hidden and show the thinnest bar while scrolling; main.tsx
+ * marks the scrolling element with .scrolling until 800ms after it stops.
+ * Chrome and Safari get 4px through ::-webkit-scrollbar; Firefox only knows
+ * thin.
+ */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+}
+.scrolling::-webkit-scrollbar-thumb {
+  background: var(--hairline-strong);
+}
+@supports (-moz-appearance: none) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+  }
+  .scrolling {
+    scrollbar-color: var(--hairline-strong) transparent;
+  }
+}
+
+/* Message and summary text rendered from Markdown (components/markdown.tsx). */
+.md {
+  overflow-wrap: anywhere;
+}
+.md p {
+  margin: 0 0 6px;
+}
+.md > :last-child {
+  margin-bottom: 0;
+}
+.md ul,
+.md ol {
+  margin: 2px 0 6px;
+  padding-left: 20px;
+}
+.md ul {
+  list-style: disc;
+}
+.md ol {
+  list-style: decimal;
+}
+.md li > p {
+  margin: 0;
+}
+.md strong {
+  font-weight: 700;
+}
+.md a {
+  color: var(--link);
+}
+.md a:hover {
+  text-decoration: underline;
+}
+.md code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--danger);
+  background: var(--chip);
+  border: 0.5px solid var(--hairline);
+  padding: 0 4px;
+  border-radius: 4px;
+}
+.md pre {
+  margin: 4px 0 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--chip);
+  border: 0.5px solid var(--hairline);
+  overflow-x: auto;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.md pre code {
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  white-space: pre;
+}
+.md h1,
+.md h2,
+.md h3,
+.md h4,
+.md h5,
+.md h6 {
+  margin: 12px 0 4px;
+  font-size: 1em;
+  font-weight: 700;
+}
+.md > h1:first-child,
+.md > h2:first-child,
+.md > h3:first-child,
+.md > h4:first-child {
+  margin-top: 0;
+}
+.md blockquote {
+  margin: 4px 0 8px;
+  padding-left: 10px;
+  border-left: 3px solid var(--line);
+  color: var(--ink-2);
+}
+.md hr {
+  margin: 10px 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}

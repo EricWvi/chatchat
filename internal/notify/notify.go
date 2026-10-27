@@ -2,7 +2,13 @@
 // server runs as a single instance, so this lives in memory.
 package notify
 
-import "sync"
+import (
+	"fmt"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+)
 
 // Change is a set of things that changed in a chat.
 type Change uint8
@@ -16,15 +22,61 @@ const (
 	Destroyed
 )
 
-// Hub fans changes out to the watchers of each chat.
+// Hub fans changes out to the watchers of each chat and counts the
+// summary and participant changes of each chat, so a client can tell what
+// changed while it was not watching.
 type Hub struct {
 	mu       sync.Mutex
 	watchers map[string]map[*Watcher]struct{}
+	counts   map[string]*counts
+	// epoch tells versions of this process from those of an earlier one,
+	// whose counts started over.
+	epoch string
 }
+
+type counts struct{ summary, participants uint64 }
 
 // NewHub returns an empty hub.
 func NewHub() *Hub {
-	return &Hub{watchers: map[string]map[*Watcher]struct{}{}}
+	return &Hub{
+		watchers: map[string]map[*Watcher]struct{}{},
+		counts:   map[string]*counts{},
+		epoch:    strconv.FormatInt(time.Now().UnixNano(), 36),
+	}
+}
+
+// Version is an opaque token for the summary and participant changes of a
+// chat so far.
+type Version string
+
+// Version returns the chat's current version. Read it before the state it
+// describes, so a change in between shows up as a newer version.
+func (h *Hub) Version(chatID string) Version {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	c := h.counts[chatID]
+	if c == nil {
+		c = &counts{}
+	}
+	return Version(fmt.Sprintf("%s.%d.%d", h.epoch, c.summary, c.participants))
+}
+
+// Diff reports what changed between two versions of a chat. A version
+// that does not parse or comes from another process counts as everything
+// having changed.
+func (h *Hub) Diff(from, to Version) Change {
+	a, b := strings.Split(string(from), "."), strings.Split(string(to), ".")
+	if len(a) != 3 || len(b) != 3 || a[0] != h.epoch || b[0] != h.epoch {
+		return Summary | Participants
+	}
+	var c Change
+	if a[1] != b[1] {
+		c |= Summary
+	}
+	if a[2] != b[2] {
+		c |= Participants
+	}
+	return c
 }
 
 // Watcher collects the changes of one chat until it is stopped.
@@ -73,10 +125,27 @@ func (w *Watcher) Take() Change {
 	return c
 }
 
-// Notify records changes for every watcher of the chat.
+// Notify records changes for every watcher of the chat. A destroyed chat
+// drops its counts.
 func (h *Hub) Notify(chatID string, c Change) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	switch {
+	case c&Destroyed != 0:
+		delete(h.counts, chatID)
+	case c&(Summary|Participants) != 0:
+		n := h.counts[chatID]
+		if n == nil {
+			n = &counts{}
+			h.counts[chatID] = n
+		}
+		if c&Summary != 0 {
+			n.summary++
+		}
+		if c&Participants != 0 {
+			n.participants++
+		}
+	}
 	for w := range h.watchers[chatID] {
 		w.mu.Lock()
 		w.changes |= c

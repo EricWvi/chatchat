@@ -148,11 +148,24 @@ type loginFlow struct {
 	State    string `json:"s"`
 	Nonce    string `json:"n"`
 	Verifier string `json:"v"`
+	// Next is the page to return to after signing in.
+	Next string `json:"r,omitempty"`
 }
 
+// localPath returns next when it is a path on this site, else "/", so the
+// login cannot be used to redirect elsewhere.
+func localPath(next string) string {
+	if !strings.HasPrefix(next, "/") || strings.HasPrefix(next, "//") || strings.ContainsAny(next, "\\\r\n") {
+		return "/"
+	}
+	return next
+}
+
+// login starts signing in; ?next= names the page to come back to.
 func (s *Service) login(w http.ResponseWriter, r *http.Request) {
+	next := localPath(r.URL.Query().Get("next"))
 	if s.devUser != "" {
-		http.Redirect(w, r, "/", http.StatusFound)
+		http.Redirect(w, r, next, http.StatusFound)
 		return
 	}
 	p, err := s.provider.get(r.Context())
@@ -161,7 +174,7 @@ func (s *Service) login(w http.ResponseWriter, r *http.Request) {
 		s.page(w, http.StatusServiceUnavailable, "认证服务暂时不可用，请稍后重试。")
 		return
 	}
-	flow := loginFlow{State: random(), Nonce: random(), Verifier: oauth2.GenerateVerifier()}
+	flow := loginFlow{State: random(), Nonce: random(), Verifier: oauth2.GenerateVerifier(), Next: next}
 	raw, _ := json.Marshal(flow)
 	http.SetCookie(w, &http.Cookie{
 		Name:     loginCookie,
@@ -215,7 +228,7 @@ func (s *Service) callback(w http.ResponseWriter, r *http.Request) {
 	}
 	s.setSessionCookie(w, token)
 	w.Header().Set("Cache-Control", "no-store")
-	http.Redirect(w, r, "/", http.StatusFound)
+	http.Redirect(w, r, localPath(flow.Next), http.StatusFound)
 }
 
 // logout ends only this browser's session. The identity provider's own

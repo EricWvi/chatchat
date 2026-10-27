@@ -112,6 +112,8 @@ func (s *Server) checkLive(ctx context.Context, p store.Participation) (store.Ch
 
 func (s *Server) getState(w http.ResponseWriter, r *http.Request, p store.Participation) error {
 	ctx := r.Context()
+	// Read before the state, so a change in between makes it look stale.
+	version := s.hub.Version(p.ChatID)
 	ci, err := s.store.ChatInfo(ctx, p.ChatID, s.opts.Limits.PresenceLease)
 	if err != nil {
 		return err
@@ -138,10 +140,11 @@ func (s *Server) getState(w http.ResponseWriter, r *http.Request, p store.Partic
 			"created_at": jsonTime(ci.CreatedAt), "expires_at": jsonTime(ci.ExpiresAt),
 			"idle_destroy_at": s.idleDestroyAt(ci), "latest_sequence": ci.LastSequence,
 		},
-		"summary":      sum,
-		"summary_job":  map[string]any{"status": job.Status, "last_failed_at": jsonTime(job.LastFailedAt)},
-		"participants": participants,
-		"you":          map[string]string{"participation_id": p.ID},
+		"summary":       sum,
+		"summary_job":   map[string]any{"status": job.Status, "last_failed_at": jsonTime(job.LastFailedAt)},
+		"participants":  participants,
+		"you":           map[string]string{"participation_id": p.ID},
+		"state_version": version,
 	})
 	return nil
 }
@@ -218,6 +221,10 @@ func (s *Server) waitMessages(w http.ResponseWriter, r *http.Request, p store.Pa
 		timeout = min(timeout, time.Duration(n)*time.Second)
 	}
 	web := p.Kind == store.KindWeb
+	// A web client passes the state_version of the state it shows, so
+	// changes made while it was not waiting are reported too.
+	q := r.URL.Query()
+	seen, hasSeen := notify.Version(q.Get("state_version")), q.Has("state_version")
 
 	// Watch before reading, so a change between the read and the wait
 	// still wakes us.
@@ -241,6 +248,10 @@ func (s *Server) waitMessages(w http.ResponseWriter, r *http.Request, p store.Pa
 		if err != nil {
 			return err
 		}
+		version := s.hub.Version(p.ChatID)
+		if web && hasSeen {
+			changed |= s.hub.Diff(seen, version)
+		}
 		if len(msgs) > 0 {
 			changed |= notify.Messages
 		}
@@ -259,6 +270,7 @@ func (s *Server) waitMessages(w http.ResponseWriter, r *http.Request, p store.Pa
 		resp := map[string]any{"messages": viewMessages(msgs), "has_more": more, "latest_sequence": c.LastSequence}
 		if web {
 			resp["changed"] = changeNames(changed)
+			resp["state_version"] = version
 		}
 		writeJSON(w, http.StatusOK, resp)
 		return nil
