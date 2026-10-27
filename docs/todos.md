@@ -55,13 +55,15 @@
 
 ## 阶段 3：CLI
 
-- [ ] `chatchat config check` / `set-token`：检查配置文件、服务端地址、用户 token 有效性、协议版本兼容
-- [ ] `chatchat join <chat>`：输出一次性凭据；只把 metadata 写入本地历史
-- [ ] `state`（最新摘要及覆盖位置、参与者）、`read`（增量 / 分页）、`wait`、`send`、`propose-end`、`leave`，凭据均从 stdin 第一行读取
-- [ ] `chatchat history [--remote]`：只列 `chat_id`、`participation_id`、`display_name`、`joined_at`、`left_at`
-- [ ] 不实现 `--resume`、默认 current participation；配置、历史、日志、错误输出都不含 secret
-- [ ] `send` 自动生成 `client_request_id`，网络重试复用同一个
-- [ ] 测试：历史文件不含 secret（需求第九节 2、10）
+- [x] `chatchat config check` / `set-token`：检查配置文件、服务端地址、用户 token 有效性、协议版本兼容
+- [x] `chatchat join <chat>`：输出一次性凭据；只把 metadata 写入本地历史
+- [x] `state`（最新摘要及覆盖位置、参与者）、`read`（增量 / 分页）、`wait`、`send`、`propose-end`、`leave`，凭据均从 stdin 第一行读取
+- [x] `chatchat history [--remote]`：只列 `chat_id`、`participation_id`、`display_name`、`joined_at`、`left_at`
+- [x] 不实现 `--resume`、默认 current participation；配置、历史、日志、错误输出都不含 secret
+- [x] `send` 自动生成 `client_request_id`，网络重试复用同一个
+- [x] 测试：历史文件不含 secret（需求第九节 2、10，`internal/cli/cli_test.go` 的 `TestNoCredentialLeaks`）；退出码、幂等重试、协议版本不兼容
+
+实现中定下的细节（已写进 `docs/api.md` 和 `docs/design.md`）：每条联网命令先查 `/meta` 再执行；凭据行里的 `server` 优先于配置；`wait --timeout` 超过服务端上限时连续等待；`send` 对无响应和 5xx 重试 2 次（1 秒、3 秒）；凭据行缺失或格式不对退出码 3；`config set-token` 带 `--server` 时一并保存地址；历史写入加文件锁；`task build` 同时构建服务端和 CLI（`build:server`、`build:cli`）。
 
 ## 阶段 4：网站
 

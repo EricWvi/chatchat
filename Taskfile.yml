@@ -27,6 +27,12 @@ tasks:
   ###################################################
 
   build:
+    desc: Build the static release binaries (server and CLI) into release/
+    cmds:
+      - task: build:server
+      - task: build:cli
+
+  build:server:
     desc: Build the static release server binary (release/chatchat-server)
     vars:
       VERSION:
@@ -37,6 +43,16 @@ tasks:
       CGO_ENABLED: "0"
     cmds:
       - go build -trimpath -ldflags "-s -w -X main.version={{.VERSION}} -X main.commit={{.COMMIT}}" -o release/chatchat-server ./cmd/chatchat-server
+
+  build:cli:
+    desc: Build the static release CLI binary (release/chatchat)
+    vars:
+      VERSION:
+        sh: git describe --tags --always --dirty 2>/dev/null || echo dev
+    env:
+      CGO_ENABLED: "0"
+    cmds:
+      - go build -trimpath -ldflags "-s -w -X main.version={{.VERSION}}" -o release/chatchat ./cmd/chatchat
 
   build:go:
     desc: Compile all Go packages
@@ -109,3 +125,8 @@ tasks:
     desc: Run the chatchat server with config.yaml in the project root
     cmds:
       - go run ./cmd/chatchat-server {{.CLI_ARGS}}
+
+  run:cli:
+    desc: Run the chatchat CLI, passing arguments after --
+    cmds:
+      - go run ./cmd/chatchat {{.CLI_ARGS}}

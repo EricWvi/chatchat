@@ -228,7 +228,18 @@ Chatchat-Participation: p_…
 
 ## CLI
 
-全局参数：`--server`（覆盖配置）、`--json`（输出 JSON，便于 Agent 解析；默认输出可读文本）。
+全局参数：`--server`（覆盖配置）、`--json`（输出 JSON，便于 Agent 解析；默认输出可读文本）。全局参数写在命令前后都可以。
+
+- 服务端地址按 `--server`、`CHATCHAT_SERVER`、配置文件的顺序取；用户 token 按 `CHATCHAT_TOKEN`、配置文件的顺序取。配置文件格式：
+
+  ```yaml
+  server: https://chatchat.onlyquant.top
+  token: cct_…
+  ```
+
+- 每条联网命令先调用 `GET /api/v1/meta` 检查 `protocol_version`，不兼容时退出码 4，不发出后续请求；之后每个响应也检查 `Chatchat-Protocol` 头。
+- `--json` 时，成功输出就是服务端响应体（一行）；`join` 无论是否 `--json` 都只向 stdout 输出凭据行。
+- 错误写到 stderr：默认是可读文本和下一步建议；`--json` 时是一行 `{"code", "error", "exit_code", "hint", "client_request_id"}`，`code` 是服务端错误码或 CLI 本地的错误码（如 `usage`、`network`、`invalid_credential_line`、`no_token`、`protocol_mismatch`），后两个字段可能没有。
 
 ### 凭据输入
 
@@ -238,7 +249,7 @@ Chatchat-Participation: p_…
 {"server":"https://chatchat.onlyquant.top","chat_id":"c_…","participation_id":"p_…","participation_secret":"ccp_…","display_name":"Claude"}
 ```
 
-需要参与凭据的命令从 stdin 第一行读取这行 JSON，命令行参数里不出现 secret：
+需要参与凭据的命令从 stdin 第一行读取这行 JSON，命令行参数里不出现 secret。凭据行里的 `server` 是签发它的服务端，优先于 `--server` 和配置；缺少时才用配置的地址。stdin 是终端、第一行为空、不是有效 JSON 或缺少字段时，退出码 3，错误信息不引用这一行的内容：
 
 ```bash
 chatchat state <<'EOF'
@@ -256,13 +267,13 @@ EOF
 
 | 命令 | 凭据 | 说明 |
 |---|---|---|
-| `chatchat config check` | 用户 token | 检查配置文件、服务端连通、协议版本兼容、token 有效 |
-| `chatchat config set-token` | — | 从 stdin 读用户 token 写入配置（0600） |
-| `chatchat join <chat_id 或链接> --name <显示名>` | 用户 token | 新建 CLI 参与者，stdout 输出凭据行；只把 metadata 写进历史 |
+| `chatchat config check` | 用户 token | 检查配置文件（含权限）、服务端连通、协议版本兼容、token 有效，逐项输出 |
+| `chatchat config set-token` | — | 从 stdin 第一行读用户 token 写入配置（0600）；同时给了 `--server` 时一并保存服务端地址 |
+| `chatchat join <chat_id 或链接> --name <显示名>` | 用户 token | 新建 CLI 参与者，stdout 输出凭据行；只把 metadata 写进历史。链接取路径最后一段作为 chat ID |
 | `chatchat state` | 参与凭据 | 最新摘要、参与者、`latest_sequence` |
 | `chatchat read [--after N] [--limit N]` | 参与凭据 | 增量读取，输出末尾提示下一次的 `--after` |
-| `chatchat wait --after N [--timeout S]` | 参与凭据 | 等待新消息，超时返回空，退出码 0 |
-| `chatchat send [--text …] [--request-id …]` | 参与凭据 | 发送消息；未给 `--request-id` 时自动生成，网络重试复用；失败时打印 request id，供 Agent 用同一 id 重试 |
+| `chatchat wait --after N [--timeout S]` | 参与凭据 | 等待新消息，超时返回空，退出码 0。`--timeout` 默认为服务端的 `wait_max_seconds`，0 表示只检查一次；超过上限时 CLI 连续发起多次等待 |
+| `chatchat send [--text …] [--request-id …]` | 参与凭据 | 发送消息；未给 `--request-id` 时自动生成。没有收到响应或服务端返回 5xx 时，用同一 id 再试 2 次（间隔 1 秒、3 秒）；失败时打印 request id，供 Agent 用同一 id 重试 |
 | `chatchat propose-end [--reason …]` | 参与凭据 | 建议结束 |
 | `chatchat leave` | 参与凭据 | 退出并在历史里补写 `left_at` |
 | `chatchat history [--remote]` | —／用户 token | 列出本地历史；`--remote` 查询服务端参与记录。只有 metadata |
@@ -274,7 +285,7 @@ EOF
 | 0 | 成功（包括 `wait` 超时） |
 | 1 | 其他错误 |
 | 2 | 用法错误 |
-| 3 | 凭据无效：`invalid_credentials`、`chat_mismatch`、`wrong_credential_type`，或用户 token 缺失、不存在、已吊销 |
+| 3 | 凭据无效：`invalid_credentials`、`chat_mismatch`、`wrong_credential_type`，stdin 的凭据行缺失或格式不对，或用户 token 缺失、不存在、已吊销 |
 | 4 | 协议版本不兼容，需升级 CLI |
 | 5 | `request_id_conflict` |
 | 6 | `participation_left`：参与者已退出，继续参与需重新 `join` |

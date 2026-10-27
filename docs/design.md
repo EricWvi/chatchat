@@ -313,6 +313,7 @@ chatchat 是简化版 Free4Chat：用户在网站开临时 chat，邀请其他�
 - 配置文件 `$XDG_CONFIG_HOME/chatchat/config.yaml`（默认 `~/.config/chatchat/config.yaml`），保存服务端地址和用户 token，文件权限 0600。环境变量 `CHATCHAT_SERVER`、`CHATCHAT_TOKEN` 可以覆盖。
 - 历史记录 `$XDG_STATE_HOME/chatchat/history.jsonl`（默认 `~/.local/state/chatchat/history.jsonl`），每行一次参与：服务端地址、`chat_id`、`participation_id`、`display_name`、`joined_at`、`left_at`。`leave` 成功后补写 `left_at`。
 - 历史记录只用于发现和排查，`chatchat history` 只列这些 metadata，不能恢复任何身份。
+- 目录权限 0700，文件权限 0600。多个 Agent 可能同时 `join` / `leave`，写历史前对同目录下的 `history.jsonl.lock` 加文件锁；`join` 成功但历史写入失败时，照常输出凭据行，只在 stderr 提示。在别处加入的参与者不在本地历史里，`leave` 时跳过。
 
 ## 日志与错误
 
