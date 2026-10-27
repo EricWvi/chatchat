@@ -356,5 +356,5 @@ chatchat 是简化版 Free4Chat：用户在网站开临时 chat，邀请其他�
 ## 技术栈与部署
 
 - 服务端：Go + SQLite（纯 Go 驱动），前端 Vite + React 构建后 embed 进二进制。项目结构和 OIDC 登录照搬听写（`../asr`），不含其设备登录流程，保留 `dev_user` 本地开发模式。
-- CLI：Go 单个静态二进制，与服务端同仓库。
+- CLI：Go 单个静态二进制，与服务端同仓库；推送 `v*` tag 后由 GitHub Actions 发布到 GitHub Releases，附带 `latest.json` 供安装和 `chatchat update` 按平台选包和校验（见 [api.md](api.md) 的「安装与发布」）。
 - 部署在 only Homelab：Compose 服务、Caddy 站点、Authelia OIDC client；只在内网和 WireGuard 下可访问。服务端是单实例，等待通知和摘要任务调度都在进程内完成。

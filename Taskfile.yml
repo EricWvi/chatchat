@@ -127,6 +127,7 @@ tasks:
     cmds:
       - task: lint
       - task: test:go
+      - task: test:scripts
 
   test:go:
     desc: Run Go unit and HTTP tests
@@ -134,6 +135,11 @@ tasks:
       CGO_ENABLED: "0"
     cmds:
       - go test ./...
+
+  test:scripts:
+    desc: Test the release scripts with node --test
+    cmds:
+      - node --test scripts/*.test.mjs
 
   ###################################################
   ################ Container Tests ##################

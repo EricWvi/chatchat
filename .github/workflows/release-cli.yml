@@ -1,0 +1,91 @@
+name: Release chatchat CLI
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Build and publish the chatchat CLI
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ github.ref_name }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Test the release manifest script
+        run: node --test scripts/*.test.mjs
+
+      # Go cross-compiles every target from one runner. CGO is off, so
+      # the binaries are static and need no libc on the host.
+      - name: Build and package
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          mkdir -p dist build
+          for target in linux-amd64 linux-arm64 darwin-amd64 darwin-arm64 windows-amd64; do
+            goos=${target%-*} goarch=${target#*-}
+            exe=chatchat
+            [[ $goos == windows ]] && exe=chatchat.exe
+            out=build/$target
+            mkdir -p "$out"
+            GOOS=$goos GOARCH=$goarch go build -trimpath -ldflags "-s -w -X main.version=${TAG}" -o "$out/$exe" ./cmd/chatchat
+            asset=chatchat-${TAG}-${target}
+            if [[ $goos == windows ]]; then
+              (cd "$out" && zip -q "../../dist/${asset}.zip" "$exe")
+            else
+              tar -czf "dist/${asset}.tar.gz" -C "$out" "$exe"
+            fi
+          done
+
+      - name: Check the Linux binary
+        run: |
+          binary=build/linux-amd64/chatchat
+          if readelf -lW "$binary" | grep -q INTERP; then
+            echo "chatchat must be statically linked" >&2
+            exit 1
+          fi
+          "$binary" help
+          test "$("$binary" --json version | jq -r .version)" = "$TAG"
+
+      - name: Generate checksums
+        working-directory: dist
+        run: sha256sum chatchat-* > SHA256SUMS
+
+      - name: Generate update manifest
+        env:
+          REPOSITORY: ${{ github.repository }}
+        run: node scripts/cli-release-manifest.mjs dist "$REPOSITORY" "$TAG"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: chatchat ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            dist/chatchat-*.tar.gz
+            dist/chatchat-*.zip
+            dist/SHA256SUMS
+            dist/latest.json

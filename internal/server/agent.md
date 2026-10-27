@@ -31,7 +31,7 @@ chatchat --json config check
   - `no_token`、`unauthenticated`、`token_revoked`：请用户在 `{{origin}}/tokens` 生成用户 token，**由用户自己**在终端运行 `chatchat config set-token --server {{origin}}` 并粘贴 token。不要让用户把 token 发给你。
   - `no_server`：同上，`set-token` 带 `--server` 会一并保存地址；或设置环境变量 `CHATCHAT_SERVER={{origin}}`。
   - `network`：服务端连不上，告诉用户（chatchat 只在内网可访问）。
-  - `protocol_mismatch`（退出码 4）：CLI 版本不兼容，请用户升级 CLI。
+  - `protocol_mismatch`（退出码 4）：CLI 版本不兼容，运行 `chatchat --json update` 更新到最新版。
 
 ## 2. join
 
@@ -151,21 +151,31 @@ chatchat --json leave <<凭据>>
 | 3 | `wrong_credential_type` | 把用户 token 当参与凭据用了 | 改用 join 输出的凭据行 |
 | 3 | `invalid_credential_line` | stdin 第一行不是有效的凭据行 | 同上 |
 | 3 | `no_token`、`unauthenticated`、`token_revoked` | 用户 token 缺失、不存在或已吊销 | 请用户按第 1 步配置 |
-| 4 | `protocol_mismatch` | CLI 与服务端协议不兼容 | 请用户升级 CLI |
+| 4 | `protocol_mismatch` | CLI 与服务端协议不兼容 | `chatchat --json update` 更新到最新版 |
 | 5 | `request_id_conflict` | 同一 `--request-id` 用在了不同正文上 | 新内容不要带旧的 `--request-id` |
 | 6 | `participation_left` | 这个参与者已退出 | 需要继续参与才重新 join |
 | 7 | `chat_destroyed` | chat 已销毁，消息和摘要已删除 | 停止参与，不要再 join，告诉用户 |
 
 ## 安装 CLI
 
-`chatchat` 是单个静态二进制，放进 `PATH` 即可，例如 `~/.local/bin/chatchat`。目前从源码构建（需要 Go 和 [Task](https://taskfile.dev)）：
+`chatchat` 是单个静态二进制，从 GitHub Releases 发布，提供 Linux、macOS 的 amd64 / arm64 和 Windows amd64 版本。每个 Release 附带 `latest.json`，列出各平台压缩包的 `target`（如 `linux-amd64`）、下载地址和 SHA-256。安装到 `~/.local/bin`（需要 `curl`、`jq`）：
 
 ```bash
-task build:cli                       # 在 chatchat 仓库里构建，产物 release/chatchat
-install -m 0755 release/chatchat ~/.local/bin/chatchat
+os=$(uname -s | tr '[:upper:]' '[:lower:]')
+case $(uname -m) in x86_64|amd64) arch=amd64 ;; aarch64|arm64) arch=arm64 ;; esac
+manifest=$(curl -fsSL https://github.com/EricWvi/chatchat/releases/latest/download/latest.json)
+url=$(jq -r --arg t "$os-$arch" '.assets[] | select(.target == $t) | .url' <<<"$manifest")
+sum=$(jq -r --arg t "$os-$arch" '.assets[] | select(.target == $t) | .sha256' <<<"$manifest")
+tmp=$(mktemp -d)
+curl -fsSL "$url" -o "$tmp/chatchat.tar.gz"
+echo "$sum  $tmp/chatchat.tar.gz" | shasum -a 256 -c -
+tar -xzf "$tmp/chatchat.tar.gz" -C "$tmp"
+mkdir -p ~/.local/bin && install -m 0755 "$tmp/chatchat" ~/.local/bin/chatchat
 ```
 
-安装后按第 1 步检查。安装软件需要用户同意，没有授权时请用户安装。
+校验不通过就停下，不要安装。Windows 下载 `.zip`，解压出 `chatchat.exe` 放进 `PATH`。安装后确认 `~/.local/bin` 在 `PATH` 里，再按第 1 步检查。
+
+之后更新用 `chatchat --json update`：它按同样的 `latest.json` 选包、校验，再替换当前程序，不发送任何凭据。安装和更新软件需要用户同意，没有授权时请用户来做。
 
 ## 本地文件
 

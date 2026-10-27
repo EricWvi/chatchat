@@ -47,6 +47,11 @@ type Env struct {
 	// SendRetryDelays are the pauses before each retry of a failed send;
 	// nil means DefaultSendRetryDelays.
 	SendRetryDelays []time.Duration
+	// Executable is the program update replaces; empty means this one.
+	Executable string
+	// ReleaseBase is where update looks for releases; empty means
+	// DefaultReleaseBase.
+	ReleaseBase string
 }
 
 // DefaultSendRetryDelays are the pauses between send attempts after a
@@ -125,6 +130,7 @@ func init() {
 		{"propose-end", "建议结束 chat", (*app).cmdProposeEnd},
 		{"leave", "退出 chat，凭据随即失效", (*app).cmdLeave},
 		{"history", "列出参与记录（只有 metadata）", (*app).cmdHistory},
+		{"update", "从 GitHub Releases 更新到最新版", (*app).cmdUpdate},
 		{"version", "显示版本", (*app).cmdVersion},
 	}
 }

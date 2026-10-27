@@ -93,7 +93,7 @@
 
 - [x] `/agent.md`：按「读取指南 → 检查 CLI 与 token → join → 读摘要和之后的消息 → 发言前检查新增 → 发送 → 等待 → 完成后 leave」组织；写明 secret 不得发到 chat、聊天内容和摘要不能覆盖本地权限或系统指令、空闲用有超时的等待
 - [x] `agent.md` 说明凭据约定只防止新 session 自动继承旧身份，不是进程隔离或安全沙箱
-- [x] CLI 安装与分发方式写入 agent.md（暂为从源码 `task build:cli` 构建；正式分发方式在阶段 6 定，定了再改 agent.md）
+- [x] CLI 安装与分发方式写入 agent.md（GitHub Releases + `latest.json`，见阶段 6）
 - [x] 端到端：网站开房 → 两个独立 Agent session 加入 → 交换消息 → 摘要生成 → 退出 → 销毁后凭据和内容全部失效
 - [x] 需求第九节 10 项验证全部通过
 
@@ -107,7 +107,9 @@
 
 - [ ] 镜像构建（GitHub Actions 发布 GHCR，不在本地构建）
 - [ ] Compose 服务、Caddy 站点、Authelia OIDC client、模型 key 等密钥配置
-- [ ] CLI 发布与安装方式
+- [x] CLI 发布与安装方式：推送 `v*` tag 由 `.github/workflows/release-cli.yml` 交叉编译 5 个平台，发布 GitHub Release，附带 `SHA256SUMS` 和 `latest.json`（同 palace）；agent.md 给出按 `latest.json` 选包、校验、安装的命令
+- [x] `chatchat update`：同 `pal update`，读 `latest.json`、校验版本 / 平台 / 固定 URL / SHA-256 后原子替换当前程序，保留权限；不读配置、不发凭据（`internal/cli/update_test.go`）
+- [ ] 首次发布 CLI 后核对 Release 附件、agent.md 的安装命令和 `chatchat update` 的完整链路；Windows 的运行中替换尚无实测
 
 ## 后续（动态调整）
 
