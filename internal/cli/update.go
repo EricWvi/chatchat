@@ -63,10 +63,10 @@ func (a *app) cmdUpdate(args []string) error {
 	if exe == "" {
 		p, err := os.Executable()
 		if err != nil {
-			return updateErr("找不到当前程序的路径：%v", err)
+			return updateErr("cannot find the path of this program: %v", err)
 		}
 		if exe, err = filepath.EvalSymlinks(p); err != nil {
-			return updateErr("找不到当前程序的路径：%v", err)
+			return updateErr("cannot find the path of this program: %v", err)
 		}
 	}
 	base := strings.TrimSuffix(a.env.ReleaseBase, "/")
@@ -81,13 +81,13 @@ func (a *app) cmdUpdate(args []string) error {
 		return err
 	}
 	if err := replaceExecutable(exe, binary); err != nil {
-		return updateErr("替换 %s 失败：%v", exe, err)
+		return updateErr("could not replace %s: %v", exe, err)
 	}
 	if a.json {
 		writeJSONLine(a.env.Stdout, map[string]any{"version": version, "previous_version": a.env.Version, "path": exe})
 		return nil
 	}
-	fmt.Fprintf(a.env.Stdout, "已更新到 %s（%s）\n", version, exe)
+	fmt.Fprintf(a.env.Stdout, "Updated to %s (%s)\n", version, exe)
 	return nil
 }
 
@@ -100,10 +100,10 @@ func (a *app) fetchRelease(ctx context.Context, base, target string) (string, []
 	}
 	var m releaseManifest
 	if err := json.Unmarshal(raw, &m); err != nil {
-		return "", nil, updateErr("latest.json 无法解析")
+		return "", nil, updateErr("could not parse latest.json")
 	}
 	if !releaseTagPattern.MatchString(m.Version) {
-		return "", nil, updateErr("latest.json 的版本号不合法")
+		return "", nil, updateErr("latest.json has an invalid version")
 	}
 	ext := ".tar.gz"
 	if strings.HasPrefix(target, "windows-") {
@@ -116,23 +116,23 @@ func (a *app) fetchRelease(ctx context.Context, base, target string) (string, []
 			continue
 		}
 		if found >= 0 {
-			return "", nil, updateErr("latest.json 里 %s 平台出现了多次", target)
+			return "", nil, updateErr("latest.json lists target %s more than once", target)
 		}
 		found = i
 	}
 	if found < 0 {
-		return "", nil, updateErr("最新版本 %s 没有 %s 平台的包", m.Version, target)
+		return "", nil, updateErr("the latest release %s has no package for %s", m.Version, target)
 	}
 	as := m.Assets[found]
 	if as.Name != name || as.URL != base+"/download/"+m.Version+"/"+name || !sha256Pattern.MatchString(as.SHA256) {
-		return "", nil, updateErr("latest.json 里 %s 平台的条目与版本 %s 不符", target, m.Version)
+		return "", nil, updateErr("the latest.json entry for %s does not match version %s", target, m.Version)
 	}
 	archive, err := a.download(ctx, as.URL, maxArchiveBytes)
 	if err != nil {
 		return "", nil, err
 	}
 	if sum := sha256.Sum256(archive); hex.EncodeToString(sum[:]) != as.SHA256 {
-		return "", nil, updateErr("%s 的 SHA-256 与 latest.json 不符，没有安装", name)
+		return "", nil, updateErr("the SHA-256 of %s does not match latest.json; nothing installed", name)
 	}
 	exe := "chatchat"
 	if ext == ".zip" {
@@ -140,7 +140,7 @@ func (a *app) fetchRelease(ctx context.Context, base, target string) (string, []
 	}
 	binary, err := extract(archive, ext, exe)
 	if err != nil {
-		return "", nil, updateErr("%s 不是有效的发布包：%v", name, err)
+		return "", nil, updateErr("%s is not a valid release package: %v", name, err)
 	}
 	return m.Version, binary, nil
 }
@@ -148,23 +148,23 @@ func (a *app) fetchRelease(ctx context.Context, base, target string) (string, []
 func (a *app) download(ctx context.Context, url string, limit int64) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
-		return nil, updateErr("下载地址不合法")
+		return nil, updateErr("invalid download URL")
 	}
 	req.Header.Set("User-Agent", "chatchat/"+a.env.Version)
 	resp, err := a.env.HTTP.Do(req)
 	if err != nil {
-		return nil, &cliError{exit: exitError, code: "network", msg: "下载失败：" + err.Error()}
+		return nil, &cliError{exit: exitError, code: "network", msg: "download failed: " + err.Error()}
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, updateErr("下载 %s 失败：HTTP %d", url, resp.StatusCode)
+		return nil, updateErr("could not download %s: HTTP %d", url, resp.StatusCode)
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
 	if err != nil {
-		return nil, &cliError{exit: exitError, code: "network", msg: "下载失败：" + err.Error()}
+		return nil, &cliError{exit: exitError, code: "network", msg: "download failed: " + err.Error()}
 	}
 	if int64(len(body)) > limit {
-		return nil, updateErr("下载 %s 失败：文件过大", url)
+		return nil, updateErr("could not download %s: file too large", url)
 	}
 	return body, nil
 }
@@ -178,17 +178,17 @@ func extract(archive []byte, ext, name string) ([]byte, error) {
 			return nil
 		}
 		if found {
-			return errors.New("包里有多个 " + name)
+			return errors.New("the package holds more than one " + name)
 		}
 		if !regular {
-			return errors.New(name + " 不是普通文件")
+			return errors.New(name + " is not a regular file")
 		}
 		b, err := io.ReadAll(io.LimitReader(r, maxArchiveBytes+1))
 		if err != nil {
 			return err
 		}
 		if len(b) == 0 || len(b) > maxArchiveBytes {
-			return errors.New(name + " 大小不对")
+			return errors.New(name + " has the wrong size")
 		}
 		out, found = b, true
 		return nil
@@ -229,7 +229,7 @@ func extract(archive []byte, ext, name string) ([]byte, error) {
 		}
 	}
 	if !found {
-		return nil, errors.New("包里没有 " + name)
+		return nil, errors.New("the package has no " + name)
 	}
 	return out, nil
 }

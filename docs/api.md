@@ -20,8 +20,10 @@
 ### 错误
 
 ```json
-{"code": "participation_left", "error": "该参与者已退出，需要继续参与请重新 join"}
+{"code": "participation_left", "error": "this participant has left; join again to keep taking part"}
 ```
+
+`error` 是给 CLI 和 Agent 看的英文说明，`invalid_request` 时指出哪个字段；程序按 `code` 判断，不解析 `error`。网站按 `code` 显示自己的中文文案，不显示 `error`。
 
 | HTTP | `code` | 含义 |
 |---|---|---|
@@ -248,7 +250,7 @@ CLI 从 GitHub Releases 发布。推送 `v*` tag 触发 [Release chatchat CLI](.
 
 `chatchat update` 读取最新正式 Release 的 `latest.json`，选当前平台（`<GOOS>-<GOARCH>`）的条目，要求版本是 `v…` tag、平台只出现一次、文件名为 `chatchat-<tag>-<target>`、`url` 固定为 `https://github.com/EricWvi/chatchat/releases/download/<tag>/<name>`；下载后校验 SHA-256，从压缩包取出唯一的普通文件 `chatchat`（Windows 为 `chatchat.exe`），写到同目录的临时文件，保留原文件权限后原子替换当前运行的程序。任何一步失败都不替换原程序，也不留下临时文件，退出码 1，错误码 `update_failed`（下载失败为 `network`）。每次都安装最新版，包括已是同一版本；不比较版本大小。不读配置、不联系 chatchat 服务端、不发送任何凭据；代理遵循标准环境变量（`HTTPS_PROXY`、`NO_PROXY` 等）。Windows 上先把运行中的程序改名为 `chatchat.exe.old` 再换入新文件，下次更新时删除。
 
-全局参数：`--server`（覆盖配置）、`--json`（输出 JSON，便于 Agent 解析；默认输出可读文本）。全局参数写在命令前后都可以。
+全局参数：`--server`（覆盖配置）、`--json`（输出 JSON，便于 Agent 解析；默认输出可读文本）。CLI 的帮助、文本输出、错误和提示都是英文；消息、摘要、系统消息等聊天内容原样输出。全局参数写在命令前后都可以。
 
 - 服务端地址按 `--server`、`CHATCHAT_SERVER`、配置文件的顺序取；用户 token 按 `CHATCHAT_TOKEN`、配置文件的顺序取。配置文件格式：
 

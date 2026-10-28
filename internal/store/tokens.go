@@ -29,7 +29,7 @@ type UserToken struct {
 // CreateUserToken creates a token for the user and returns it with the
 // token string, which exists only in this return value.
 func (s *Store) CreateUserToken(ctx context.Context, userID int64, name string) (UserToken, string, error) {
-	name, err := cleanLine("名称", name, MaxTokenName)
+	name, err := cleanLine("name", name, MaxTokenName)
 	if err != nil {
 		return UserToken{}, "", err
 	}

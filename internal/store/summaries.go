@@ -64,7 +64,7 @@ func (s *Store) AppendSummary(ctx context.Context, chatID string, prev, covers i
 		case latest.Revision != prev:
 			return ErrSummaryConflict
 		case covers <= latest.CoversThrough || covers > c.LastSequence:
-			return invalid(fmt.Sprintf("摘要覆盖位置 %d 不在 (%d, %d] 内", covers, latest.CoversThrough, c.LastSequence))
+			return invalid(fmt.Sprintf("summary covers sequence %d, outside (%d, %d]", covers, latest.CoversThrough, c.LastSequence))
 		}
 		sum.CreatedAt = s.nowMilli()
 		_, err = tx.ExecContext(ctx, `INSERT INTO summaries (`+summaryColumns+`) VALUES (?, ?, ?, ?, ?, ?)`,

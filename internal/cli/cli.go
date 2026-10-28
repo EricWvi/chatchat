@@ -121,29 +121,29 @@ var commands []command
 
 func init() {
 	commands = []command{
-		{"config", "检查配置（config check）或保存用户 token（config set-token）", (*app).cmdConfig},
-		{"join", "加入 chat，stdout 输出凭据行", (*app).cmdJoin},
-		{"state", "查看最新摘要、参与者和最新 sequence", (*app).cmdState},
-		{"read", "增量读取消息", (*app).cmdRead},
-		{"wait", "等待新消息，超时返回空", (*app).cmdWait},
-		{"send", "发送消息", (*app).cmdSend},
-		{"propose-end", "建议结束 chat", (*app).cmdProposeEnd},
-		{"leave", "退出 chat，凭据随即失效", (*app).cmdLeave},
-		{"history", "列出参与记录（只有 metadata）", (*app).cmdHistory},
-		{"update", "从 GitHub Releases 更新到最新版", (*app).cmdUpdate},
-		{"version", "显示版本", (*app).cmdVersion},
+		{"config", "Check the setup (config check) or save the user token (config set-token)", (*app).cmdConfig},
+		{"join", "Join a chat; prints the credential line on stdout", (*app).cmdJoin},
+		{"state", "Show the latest summary, participants and latest sequence", (*app).cmdState},
+		{"read", "Read messages after a sequence", (*app).cmdRead},
+		{"wait", "Wait for new messages; returns empty on timeout", (*app).cmdWait},
+		{"send", "Send a message", (*app).cmdSend},
+		{"propose-end", "Propose ending the chat", (*app).cmdProposeEnd},
+		{"leave", "Leave the chat; the credentials stop working", (*app).cmdLeave},
+		{"history", "List participations (metadata only)", (*app).cmdHistory},
+		{"update", "Update to the latest release from GitHub Releases", (*app).cmdUpdate},
+		{"version", "Show the version", (*app).cmdVersion},
 	}
 }
 
 func (a *app) dispatch(args []string) error {
-	fs := a.flags("chatchat", "<命令> [参数]")
+	fs := a.flags("chatchat", "<command> [arguments]")
 	fs.Usage = a.usage
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if fs.NArg() == 0 {
 		a.usage()
-		return usageErr("缺少命令")
+		return usageErr("missing command")
 	}
 	name, rest := fs.Arg(0), fs.Args()[1:]
 	if name == "help" {
@@ -156,20 +156,20 @@ func (a *app) dispatch(args []string) error {
 		}
 	}
 	a.usage()
-	return usageErr("未知命令 %q", name)
+	return usageErr("unknown command %q", name)
 }
 
 func (a *app) usage() {
 	w := a.env.Stderr
-	fmt.Fprintln(w, "用法：chatchat [--server URL] [--json] <命令> [参数]")
-	fmt.Fprintln(w, "\n命令：")
+	fmt.Fprintln(w, "Usage: chatchat [--server URL] [--json] <command> [arguments]")
+	fmt.Fprintln(w, "\nCommands:")
 	for _, c := range commands {
 		fmt.Fprintf(w, "  %-12s %s\n", c.name, c.summary)
 	}
-	fmt.Fprintln(w, "\n需要参与凭据的命令从 stdin 第一行读取 join 输出的凭据行。")
-	fmt.Fprintln(w, "全局参数：")
-	fmt.Fprintln(w, "  --server URL  覆盖配置中的服务端地址")
-	fmt.Fprintln(w, "  --json        输出 JSON")
+	fmt.Fprintln(w, "\nCommands that need participation credentials read the credential line printed by join from the first line of stdin.")
+	fmt.Fprintln(w, "Global flags:")
+	fmt.Fprintln(w, "  --server URL  override the configured server address")
+	fmt.Fprintln(w, "  --json        output JSON")
 }
 
 // flags returns a flag set for a command with the global flags on it, so
@@ -177,10 +177,10 @@ func (a *app) usage() {
 func (a *app) flags(name, synopsis string) *flag.FlagSet {
 	fs := flag.NewFlagSet(name, flag.ContinueOnError)
 	fs.SetOutput(a.env.Stderr)
-	fs.StringVar(&a.server, "server", a.server, "服务端地址，覆盖配置和 CHATCHAT_SERVER")
-	fs.BoolVar(&a.json, "json", a.json, "输出 JSON")
+	fs.StringVar(&a.server, "server", a.server, "server address; overrides the config file and CHATCHAT_SERVER")
+	fs.BoolVar(&a.json, "json", a.json, "output JSON")
 	fs.Usage = func() {
-		fmt.Fprintf(a.env.Stderr, "用法：chatchat %s %s\n", name, synopsis)
+		fmt.Fprintf(a.env.Stderr, "Usage: chatchat %s %s\n", name, synopsis)
 		fs.PrintDefaults()
 	}
 	return fs
@@ -230,10 +230,10 @@ func (a *app) printError(e *cliError) {
 	}
 	fmt.Fprintf(a.env.Stderr, "chatchat: %s\n", e.msg)
 	if e.hint != "" {
-		fmt.Fprintf(a.env.Stderr, "提示：%s\n", e.hint)
+		fmt.Fprintf(a.env.Stderr, "hint: %s\n", e.hint)
 	}
 	if e.requestID != "" {
-		fmt.Fprintf(a.env.Stderr, "client_request_id：%s（重试时加 --request-id %s，不会重复发送）\n", e.requestID, e.requestID)
+		fmt.Fprintf(a.env.Stderr, "client_request_id: %s (retry with --request-id %s; the message will not be sent twice)\n", e.requestID, e.requestID)
 	}
 }
 
@@ -262,6 +262,6 @@ func (a *app) cmdVersion(args []string) error {
 		writeJSONLine(a.env.Stdout, map[string]any{"version": v, "protocol_version": protocolVersion})
 		return nil
 	}
-	fmt.Fprintf(a.env.Stdout, "chatchat %s（协议版本 %d）\n", v, protocolVersion)
+	fmt.Fprintf(a.env.Stdout, "chatchat %s (protocol version %d)\n", v, protocolVersion)
 	return nil
 }

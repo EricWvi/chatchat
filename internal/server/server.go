@@ -110,7 +110,7 @@ func New(ctx context.Context, st *store.Store, authn *auth.Service, web fs.FS, o
 	api.Handle("POST "+webChat+"/leave", s.participant(s.webParticipant, s.leave))
 
 	api.Handle("/", s.handle(func(w http.ResponseWriter, r *http.Request) error {
-		return &apiError{http.StatusNotFound, "not_found", "接口不存在"}
+		return &apiError{http.StatusNotFound, "not_found", "no such endpoint"}
 	}))
 	s.handler = logRequests(mux)
 	return s, nil
@@ -191,19 +191,19 @@ func (e *apiError) Error() string { return e.code + ": " + e.msg }
 func errInvalid(msg string) error { return &apiError{http.StatusBadRequest, "invalid_request", msg} }
 
 var (
-	errUnauthenticated  = &apiError{http.StatusUnauthorized, "unauthenticated", "未登录，或用户 token 不存在"}
-	errTokenRevoked     = &apiError{http.StatusUnauthorized, "token_revoked", "用户 token 已吊销"}
-	errInvalidCreds     = &apiError{http.StatusUnauthorized, "invalid_credentials", "参与凭据无效：参与者不存在或 secret 不匹配"}
-	errChatMismatch     = &apiError{http.StatusUnauthorized, "chat_mismatch", "参与凭据属于另一个 chat"}
-	errLeft             = &apiError{http.StatusGone, "participation_left", "该参与者已退出，需要继续参与请重新 join"}
-	errDestroyed        = &apiError{http.StatusGone, "chat_destroyed", "chat 已销毁"}
-	errChatNotFound     = &apiError{http.StatusNotFound, "chat_not_found", "没有这个 chat"}
-	errUntrustedOrigin  = &apiError{http.StatusForbidden, "untrusted_origin", "请求来源不受信任"}
-	errRequestIDReused  = &apiError{http.StatusConflict, "request_id_conflict", "同一 client_request_id 已用于不同的正文"}
-	errNotEntered       = &apiError{http.StatusForbidden, "forbidden", "尚未进入这个 chat"}
-	errNotCreator       = &apiError{http.StatusForbidden, "forbidden", "只有创建者可以销毁 chat"}
-	errTokenNotFound    = &apiError{http.StatusNotFound, "not_found", "没有这个用户 token"}
-	errUserTokenOnAgent = wrongCredential("用户 token 不能用于参与者接口，请使用 join 返回的参与凭据")
+	errUnauthenticated  = &apiError{http.StatusUnauthorized, "unauthenticated", "not signed in, or the user token does not exist"}
+	errTokenRevoked     = &apiError{http.StatusUnauthorized, "token_revoked", "the user token has been revoked"}
+	errInvalidCreds     = &apiError{http.StatusUnauthorized, "invalid_credentials", "invalid participation credentials: no such participant or the secret does not match"}
+	errChatMismatch     = &apiError{http.StatusUnauthorized, "chat_mismatch", "the participation credentials belong to another chat"}
+	errLeft             = &apiError{http.StatusGone, "participation_left", "this participant has left; join again to keep taking part"}
+	errDestroyed        = &apiError{http.StatusGone, "chat_destroyed", "the chat has been destroyed"}
+	errChatNotFound     = &apiError{http.StatusNotFound, "chat_not_found", "no such chat"}
+	errUntrustedOrigin  = &apiError{http.StatusForbidden, "untrusted_origin", "untrusted request origin"}
+	errRequestIDReused  = &apiError{http.StatusConflict, "request_id_conflict", "this client_request_id was already used with different text"}
+	errNotEntered       = &apiError{http.StatusForbidden, "forbidden", "you have not entered this chat"}
+	errNotCreator       = &apiError{http.StatusForbidden, "forbidden", "only the creator can destroy the chat"}
+	errTokenNotFound    = &apiError{http.StatusNotFound, "not_found", "no such user token"}
+	errUserTokenOnAgent = wrongCredential("a user token cannot be used on participant endpoints; use the credentials returned by join")
 )
 
 func wrongCredential(msg string) error {
@@ -242,7 +242,7 @@ func writeErr(w http.ResponseWriter, r *http.Request, err error) {
 		return
 	default:
 		slog.Error("request failed", "method", r.Method, "path", r.URL.Path, "err", err)
-		ae = &apiError{http.StatusInternalServerError, "internal", "服务器内部错误"}
+		ae = &apiError{http.StatusInternalServerError, "internal", "internal server error"}
 	}
 	writeJSON(w, ae.status, map[string]string{"code": ae.code, "error": ae.msg})
 }
@@ -264,9 +264,9 @@ func decode(w http.ResponseWriter, r *http.Request, v any) error {
 	case err == nil || errors.Is(err, io.EOF):
 		return nil
 	case errors.As(err, &tooLarge):
-		return &apiError{http.StatusRequestEntityTooLarge, "too_large", "请求体太大"}
+		return &apiError{http.StatusRequestEntityTooLarge, "too_large", "request body too large"}
 	}
-	return errInvalid("请求体不是有效的 JSON")
+	return errInvalid("request body is not valid JSON")
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

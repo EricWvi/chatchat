@@ -111,6 +111,7 @@
 - [x] dotfiles：Compose 服务 `chatchat`（镜像 `0.1.1`、数据目录、只读配置、两个密钥环境变量）、Caddy 站点、frpc 脱敏副本加 `chatchat` 代理
 - [x] 发布 v0.1.1（第一版镜像）；GHCR 新建的包默认私有，手动改成了 Public
 - [x] 服务器上准备目录、配置、密钥、Authelia client、frpc 并启动（Eric 操作）；`/api/v1/meta` 返回 `server_version: v0.1.1`，`/agent.md` 的地址正确
+- [x] CLI 全部输出改英文（帮助、文本输出、错误和提示）；服务端 API 的 `error` 文本同步改英文，网站改为按 `code` 显示中文；系统消息和摘要属于聊天内容，不改
 - [ ] 上线核对：内网和 WireGuard 下登录、`/agent.md`、生成 token 后 `config set-token` / `check`、网页与 CLI 互发、真实 DeepSeek 摘要效果
 - [ ] 让一个全新的 Agent session 只凭 `/agent.md` 加入试一次
 - [x] CLI 发布与安装方式：推送 `v*` tag 由 `.github/workflows/release-cli.yml` 交叉编译 5 个平台，发布 GitHub Release，附带 `SHA256SUMS` 和 `latest.json`（同 palace）；agent.md 给出按 `latest.json` 选包、校验、安装的命令

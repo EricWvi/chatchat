@@ -62,8 +62,8 @@ func (a *app) connect(server string, authorize func(*http.Request)) (*client, me
 func protocolErr(got string) error {
 	return &cliError{
 		exit: exitProtocol, code: "protocol_mismatch",
-		msg:  fmt.Sprintf("服务端协议版本是 %s，本 CLI 支持 %d", got, protocolVersion),
-		hint: "升级 chatchat CLI 后再试",
+		msg:  fmt.Sprintf("the server speaks protocol version %s; this CLI supports %d", got, protocolVersion),
+		hint: "update the chatchat CLI (chatchat update) and try again",
 	}
 }
 
@@ -97,7 +97,7 @@ func (c *client) call(ctx context.Context, method, path string, query url.Values
 	}
 	if out != nil {
 		if err := json.Unmarshal(raw, out); err != nil {
-			return status, raw, &cliError{exit: exitError, code: "bad_response", msg: "服务端响应无法解析"}
+			return status, raw, &cliError{exit: exitError, code: "bad_response", msg: "could not parse the server response"}
 		}
 	}
 	return status, raw, nil
@@ -143,12 +143,12 @@ func (c *client) roundTrip(ctx context.Context, method, path string, query url.V
 	switch {
 	case proto == "" && resp.StatusCode >= 500:
 		// A proxy in front of a server that is down or restarting.
-		return resp.StatusCode, raw, &apiError{resp.StatusCode, "unavailable", "服务端暂时不可用（HTTP " + strconv.Itoa(resp.StatusCode) + "）"}
+		return resp.StatusCode, raw, &apiError{resp.StatusCode, "unavailable", "the server is temporarily unavailable (HTTP " + strconv.Itoa(resp.StatusCode) + ")"}
 	case proto == "":
 		return resp.StatusCode, raw, &cliError{
 			exit: exitError, code: "not_chatchat",
-			msg:  fmt.Sprintf("%s 返回了 HTTP %d，看起来不是 chatchat 服务端", c.base, resp.StatusCode),
-			hint: "检查 --server、CHATCHAT_SERVER 或配置文件里的服务端地址",
+			msg:  fmt.Sprintf("%s returned HTTP %d and does not look like a chatchat server", c.base, resp.StatusCode),
+			hint: "check the server address in --server, CHATCHAT_SERVER or the config file",
 		}
 	case proto != strconv.Itoa(protocolVersion):
 		return resp.StatusCode, raw, protocolErr(proto)
@@ -186,9 +186,9 @@ func classify(err error) error {
 	}
 	var ne *netError
 	if errors.As(err, &ne) {
-		msg := "无法连接服务端：" + ne.Error()
+		msg := "cannot reach the server: " + ne.Error()
 		if errors.Is(ne.err, context.DeadlineExceeded) {
-			msg = "请求服务端超时"
+			msg = "the request to the server timed out"
 		}
 		return &cliError{exit: exitError, code: "network", msg: msg}
 	}
@@ -199,19 +199,19 @@ func classify(err error) error {
 	out := &cliError{exit: exitError, code: ae.code, msg: ae.msg}
 	switch ae.code {
 	case "invalid_credentials":
-		out.exit, out.hint = exitCredentials, "检查传入的凭据行是否完整；无法确认时重新 join"
+		out.exit, out.hint = exitCredentials, "check that the credential line was passed whole; if unsure, join again"
 	case "chat_mismatch":
-		out.exit, out.hint = exitCredentials, "换用该 chat 对应的凭据行"
+		out.exit, out.hint = exitCredentials, "use the credential line for this chat"
 	case "wrong_credential_type":
-		out.exit, out.hint = exitCredentials, "参与者命令用 join 输出的凭据行，账号命令用配置里的用户 token"
+		out.exit, out.hint = exitCredentials, "participant commands take the credential line from join; account commands use the configured user token"
 	case "unauthenticated", "token_revoked":
-		out.exit, out.hint = exitCredentials, "在网站生成用户 token，用 chatchat config set-token 保存"
+		out.exit, out.hint = exitCredentials, "create a user token on the website and save it with chatchat config set-token"
 	case "request_id_conflict":
-		out.exit, out.hint = exitConflict, "这个 request id 已用于另一段正文；新消息不要带 --request-id"
+		out.exit, out.hint = exitConflict, "this request id was used for different text; send new messages without --request-id"
 	case "participation_left":
-		out.exit, out.hint = exitLeft, "需要继续参与就重新 join，成为新参与者"
+		out.exit, out.hint = exitLeft, "to keep taking part, join again as a new participant"
 	case "chat_destroyed":
-		out.exit, out.hint = exitDestroyed, "停止参与，不必再 join"
+		out.exit, out.hint = exitDestroyed, "stop taking part; do not join again"
 	}
 	return out
 }

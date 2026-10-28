@@ -109,6 +109,25 @@ export class ApiError extends Error {
 
 export const isCode = (err: unknown, code: string) => err instanceof ApiError && err.code === code;
 
+/** What the site says for each API error code; the server's `error` text is English, for the CLI. */
+const errorText: Record<string, string> = {
+  invalid_request: "输入不符合要求",
+  unauthenticated: "登录已失效，请重新登录",
+  token_revoked: "用户 token 已吊销",
+  invalid_credentials: "参与凭据无效",
+  chat_mismatch: "参与凭据属于另一个 chat",
+  participation_left: "你已退出这个 chat",
+  chat_destroyed: "chat 已销毁",
+  wrong_credential_type: "凭据类型不对",
+  forbidden: "没有权限执行这个操作",
+  untrusted_origin: "请求来源不受信任",
+  chat_not_found: "没有这个 chat",
+  not_found: "要找的内容不存在",
+  request_id_conflict: "同一条消息重复提交，但内容不同",
+  too_large: "内容超过长度上限",
+  internal: "服务器内部错误，请稍后重试",
+};
+
 async function request<T>(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
   const init: RequestInit = { method, cache: "no-store", signal };
   if (body !== undefined) {
@@ -125,8 +144,8 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
   if (res.status === 204) return undefined as T;
   const data: unknown = await res.json().catch(() => null);
   if (!res.ok) {
-    const e = data as { code?: string; error?: string } | null;
-    throw new ApiError(res.status, e?.code ?? "", e?.error ?? `请求失败（${res.status}）`);
+    const code = (data as { code?: string } | null)?.code ?? "";
+    throw new ApiError(res.status, code, errorText[code] ?? `请求失败（${res.status}）`);
   }
   return data as T;
 }

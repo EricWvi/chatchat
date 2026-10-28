@@ -38,9 +38,9 @@ func (s *Server) accountUser(w http.ResponseWriter, r *http.Request, allow accou
 	if token, present := bearer(r); present {
 		switch {
 		case strings.HasPrefix(token, store.ParticipationSecretPrefix):
-			return store.User{}, wrongCredential("参与凭据不能用于账号接口，请使用用户 token")
+			return store.User{}, wrongCredential("participation credentials cannot be used on account endpoints; use a user token")
 		case allow == sessionOnly:
-			return store.User{}, wrongCredential("该接口只接受网站登录状态")
+			return store.User{}, wrongCredential("this endpoint only accepts a website session")
 		}
 		u, err := s.store.TokenUser(r.Context(), token)
 		switch {
@@ -52,7 +52,7 @@ func (s *Server) accountUser(w http.ResponseWriter, r *http.Request, allow accou
 		return u, err
 	}
 	if allow == tokenOnly {
-		return store.User{}, wrongCredential("该接口只接受用户 token，请通过 chatchat CLI 调用")
+		return store.User{}, wrongCredential("this endpoint only accepts a user token; call it through the chatchat CLI")
 	}
 	return s.sessionUser(w, r)
 }
@@ -60,7 +60,7 @@ func (s *Server) accountUser(w http.ResponseWriter, r *http.Request, allow accou
 // sessionUser authenticates a request by its login session alone.
 func (s *Server) sessionUser(w http.ResponseWriter, r *http.Request) (store.User, error) {
 	if _, present := bearer(r); present {
-		return store.User{}, wrongCredential("该接口只接受网站登录状态")
+		return store.User{}, wrongCredential("this endpoint only accepts a website session")
 	}
 	if !s.auth.SameOrigin(r) {
 		return store.User{}, errUntrustedOrigin
@@ -183,7 +183,7 @@ func (s *Server) listChats(w http.ResponseWriter, r *http.Request) error {
 	offset := 0
 	if c := r.URL.Query().Get("cursor"); c != "" {
 		if offset, err = strconv.Atoi(c); err != nil || offset < 0 {
-			return errInvalid("cursor 无效")
+			return errInvalid("invalid cursor")
 		}
 	}
 	chats, more, err := s.store.ListUserChats(r.Context(), u.ID, s.opts.Limits.PresenceLease, offset, limit)
@@ -271,7 +271,7 @@ func (s *Server) pageSize(r *http.Request) (int, error) {
 	}
 	n, err := strconv.Atoi(v)
 	if err != nil || n < 1 {
-		return 0, errInvalid("limit 必须是正整数")
+		return 0, errInvalid("limit must be a positive integer")
 	}
 	return min(n, l.PageSizeMax), nil
 }

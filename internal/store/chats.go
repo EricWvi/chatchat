@@ -86,12 +86,12 @@ func scanChatInfo(row scanner) (ChatInfo, error) {
 
 // CreateChat creates a chat that expires lifetime after now.
 func (s *Store) CreateChat(ctx context.Context, creatorID int64, title, goal string, lifetime time.Duration) (Chat, error) {
-	title, err := cleanLine("标题", title, MaxChatTitle)
+	title, err := cleanLine("title", title, MaxChatTitle)
 	if err != nil {
 		return Chat{}, err
 	}
 	if utf8.RuneCountInString(goal) > MaxChatGoal {
-		return Chat{}, invalid(fmt.Sprintf("沟通目标最多 %d 个字符", MaxChatGoal))
+		return Chat{}, invalid(fmt.Sprintf("goal must be at most %d characters", MaxChatGoal))
 	}
 	now := s.nowMilli()
 	c := Chat{

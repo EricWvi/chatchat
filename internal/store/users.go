@@ -39,7 +39,7 @@ type Identity struct {
 // login and refreshing the display attributes on later ones.
 func (s *Store) UpsertUser(ctx context.Context, id Identity) (User, error) {
 	if id.Issuer == "" || id.Subject == "" {
-		return User{}, invalid("身份缺少 issuer 或 subject")
+		return User{}, invalid("identity is missing the issuer or subject")
 	}
 	u := User{Name: id.Name, Email: id.Email}
 	err := s.inTx(ctx, func(tx *sql.Tx) error {

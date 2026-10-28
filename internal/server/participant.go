@@ -53,7 +53,7 @@ func (s *Server) cliParticipant(w http.ResponseWriter, r *http.Request) (store.P
 		return store.Participation{}, errUserTokenOnAgent
 	case !present:
 		if _, err := r.Cookie(auth.SessionCookie); err == nil {
-			return store.Participation{}, wrongCredential("网站登录状态不能用于参与者接口，请使用 join 返回的参与凭据")
+			return store.Participation{}, wrongCredential("a website session cannot be used on participant endpoints; use the credentials returned by join")
 		}
 		return store.Participation{}, errInvalidCreds
 	}
@@ -158,7 +158,7 @@ func sequenceParam(r *http.Request, name string) (v int64, ok bool, err error) {
 	}
 	v, err = strconv.ParseInt(raw, 10, 64)
 	if err != nil || v < 0 {
-		return 0, false, errInvalid(name + " 必须是非负整数")
+		return 0, false, errInvalid(name + " must be a non-negative integer")
 	}
 	return v, true, nil
 }
@@ -173,9 +173,9 @@ func (s *Server) getMessages(w http.ResponseWriter, r *http.Request, p store.Par
 	case err != nil:
 		return err
 	case hasAfter && hasBefore:
-		return errInvalid("after_sequence 和 before_sequence 不能同时使用")
+		return errInvalid("after_sequence and before_sequence cannot be used together")
 	case hasBefore && before == 0:
-		return errInvalid("before_sequence 必须是正整数")
+		return errInvalid("before_sequence must be a positive integer")
 	}
 	limit, err := s.pageSize(r)
 	if err != nil {
@@ -206,7 +206,7 @@ func (s *Server) waitMessages(w http.ResponseWriter, r *http.Request, p store.Pa
 		return err
 	}
 	if !ok {
-		return errInvalid("缺少 after_sequence")
+		return errInvalid("after_sequence is required")
 	}
 	limit, err := s.pageSize(r)
 	if err != nil {
@@ -216,7 +216,7 @@ func (s *Server) waitMessages(w http.ResponseWriter, r *http.Request, p store.Pa
 	if raw := r.URL.Query().Get("timeout_seconds"); raw != "" {
 		n, err := strconv.Atoi(raw)
 		if err != nil || n < 0 {
-			return errInvalid("timeout_seconds 必须是非负整数")
+			return errInvalid("timeout_seconds must be a non-negative integer")
 		}
 		timeout = min(timeout, time.Duration(n)*time.Second)
 	}

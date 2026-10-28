@@ -24,7 +24,7 @@ func TestParticipantFlow(t *testing.T) {
 
 	r := h.run(line+"\n第一行\n第二行\n", nil, "send")
 	h.expect(r, 0)
-	if !strings.Contains(r.stdout, "已发送 #2") {
+	if !strings.Contains(r.stdout, "Sent #2") {
 		t.Fatalf("send: %s", r.stdout)
 	}
 	h.expect(h.run(line, nil, "send", "--text", "第三行"), 0)
@@ -46,7 +46,7 @@ func TestParticipantFlow(t *testing.T) {
 
 	r = h.run(line, nil, "state")
 	h.expect(r, 0)
-	for _, want := range []string{"重构讨论", "最新消息：#3", "摘要：还没有", "Claude（", "（我） CLI 在线", "read --after 0"} {
+	for _, want := range []string{"重构讨论", "Latest message: #3", "Summary: none yet", "Claude (", "(you) CLI online", "read --after 0"} {
 		if !strings.Contains(r.stdout, want) {
 			t.Fatalf("state output lacks %q:\n%s", want, r.stdout)
 		}
@@ -75,7 +75,7 @@ func TestWait(t *testing.T) {
 
 	r := h.run(line, nil, "wait", "--after", "2", "--timeout", "0")
 	h.expect(r, 0)
-	if !strings.Contains(r.stdout, "等待超时") {
+	if !strings.Contains(r.stdout, "Wait timed out") {
 		t.Fatalf("wait timeout: %s", r.stdout)
 	}
 
@@ -121,7 +121,7 @@ func TestSendRetryReusesRequestID(t *testing.T) {
 	h.dropMessagePosts(2)
 	r := h.run(line, nil, "send", "--text", "只发一次")
 	h.expect(r, 0)
-	if !strings.Contains(r.stdout, "重复请求") {
+	if !strings.Contains(r.stdout, "duplicate request") {
 		t.Fatalf("the third attempt should get the first message back: %s", r.stdout)
 	}
 	if n := countText(t, h, chatID); n != 1 {
@@ -149,7 +149,7 @@ func TestSendFailurePrintsRequestID(t *testing.T) {
 	h.handler = api
 	r = h.run(line, nil, "send", "--text", "网络不好", "--request-id", e.RequestID)
 	h.expect(r, 0)
-	if !strings.Contains(r.stdout, "重复请求") {
+	if !strings.Contains(r.stdout, "duplicate request") {
 		t.Fatalf("retry with the printed id: %s", r.stdout)
 	}
 	if n := countText(t, h, chatID); n != 1 {
@@ -240,7 +240,7 @@ func TestExitCodes(t *testing.T) {
 	}
 	r := h.run(line, nil, "read")
 	h.expect(r, exitDestroyed)
-	if !strings.Contains(r.stderr, "chat 已销毁") {
+	if !strings.Contains(r.stderr, "the chat has been destroyed") {
 		t.Fatalf("stderr: %s", r.stderr)
 	}
 }
@@ -283,7 +283,7 @@ func TestNotChatchatServer(t *testing.T) {
 	t.Cleanup(other.Close)
 	r := h.run("", []string{serverEnv + "=" + other.URL}, "config", "check")
 	h.expect(r, exitError)
-	if !strings.Contains(r.stdout, "不是 chatchat 服务端") {
+	if !strings.Contains(r.stdout, "does not look like a chatchat server") {
 		t.Fatalf("stdout: %s", r.stdout)
 	}
 }

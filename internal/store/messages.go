@@ -48,13 +48,13 @@ type Message struct {
 // different text under the same ID is ErrRequestIDConflict.
 func (s *Store) SendText(ctx context.Context, p Participation, text, requestID string) (m Message, created bool, err error) {
 	if strings.TrimSpace(text) == "" {
-		return m, false, invalid("消息不能为空")
+		return m, false, invalid("text must not be empty")
 	}
 	if utf8.RuneCountInString(text) > MaxMessageChars {
-		return m, false, fmt.Errorf("%w: 消息最多 %d 个字符", ErrTooLarge, MaxMessageChars)
+		return m, false, fmt.Errorf("%w: text must be at most %d characters", ErrTooLarge, MaxMessageChars)
 	}
 	if requestID != "" && (utf8.RuneCountInString(requestID) > MaxRequestID || strings.TrimSpace(requestID) != requestID) {
-		return m, false, invalid(fmt.Sprintf("client_request_id 最多 %d 个字符，且不能有首尾空白", MaxRequestID))
+		return m, false, invalid(fmt.Sprintf("client_request_id must be at most %d characters with no leading or trailing spaces", MaxRequestID))
 	}
 	err = s.inTx(ctx, func(tx *sql.Tx) error {
 		if requestID != "" {
@@ -83,7 +83,7 @@ func (s *Store) SendText(ctx context.Context, p Participation, text, requestID s
 func (s *Store) ProposeEnd(ctx context.Context, p Participation, reason string) (Message, error) {
 	reason = strings.TrimSpace(reason)
 	if utf8.RuneCountInString(reason) > MaxReason {
-		return Message{}, invalid(fmt.Sprintf("理由最多 %d 个字符", MaxReason))
+		return Message{}, invalid(fmt.Sprintf("reason must be at most %d characters", MaxReason))
 	}
 	text := proposedEndText
 	if reason != "" {

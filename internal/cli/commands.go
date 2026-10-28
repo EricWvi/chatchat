@@ -17,7 +17,7 @@ import (
 
 func (a *app) cmdConfig(args []string) error {
 	if len(args) == 0 {
-		return usageErr("用法：chatchat config check | set-token")
+		return usageErr("usage: chatchat config check | set-token")
 	}
 	switch args[0] {
 	case "check":
@@ -25,20 +25,20 @@ func (a *app) cmdConfig(args []string) error {
 	case "set-token":
 		return a.cmdSetToken(args[1:])
 	}
-	return usageErr("未知的 config 子命令 %q，可用：check、set-token", args[0])
+	return usageErr("unknown config subcommand %q; use check or set-token", args[0])
 }
 
 // cmdSetToken saves the user token from stdin, and the server when
 // --server is given, to the config file.
 func (a *app) cmdSetToken(args []string) error {
-	fs := a.flags("config set-token", "< token（从 stdin 第一行读取）")
+	fs := a.flags("config set-token", "< token (read from the first line of stdin)")
 	if pos, err := parse(fs, args); err != nil {
 		return err
 	} else if len(pos) > 0 {
-		return usageErr("用户 token 只从 stdin 读取，不要写在命令行参数里")
+		return usageErr("the user token is read from stdin only; do not put it in command line arguments")
 	}
 	if isTerminal(a.env.Stdin) {
-		fmt.Fprintln(a.env.Stderr, "粘贴用户 token 后回车：")
+		fmt.Fprintln(a.env.Stderr, "Paste the user token and press Enter:")
 	}
 	line, err := a.readLine()
 	if err != nil {
@@ -47,11 +47,11 @@ func (a *app) cmdSetToken(args []string) error {
 	token := strings.TrimSpace(line)
 	switch {
 	case token == "":
-		return usageErr("stdin 第一行是空的，没有用户 token")
+		return usageErr("the first line of stdin is empty; no user token")
 	case strings.HasPrefix(token, participationSecretPrefix):
-		return &cliError{exit: exitUsage, code: "wrong_credential_type", msg: "这是参与凭据，不是用户 token", hint: "用户 token 以 cct_ 开头，在网站的「用户 token」页生成"}
+		return &cliError{exit: exitUsage, code: "wrong_credential_type", msg: "this is a participation secret, not a user token", hint: "user tokens start with cct_; create one on the website's user token page"}
 	case !strings.HasPrefix(token, userTokenPrefix):
-		return usageErr("用户 token 应以 cct_ 开头")
+		return usageErr("a user token starts with cct_")
 	}
 	path, err := a.configPath()
 	if err != nil {
@@ -68,17 +68,17 @@ func (a *app) cmdSetToken(args []string) error {
 		}
 	}
 	if err := saveConfig(path, c); err != nil {
-		return fmt.Errorf("保存配置文件失败：%w", err)
+		return fmt.Errorf("could not save the config file: %w", err)
 	}
 	if a.json {
 		writeJSONLine(a.env.Stdout, map[string]any{"config_path": path, "server": nullable(c.Server)})
 		return nil
 	}
-	fmt.Fprintf(a.env.Stdout, "已保存到 %s\n", path)
+	fmt.Fprintf(a.env.Stdout, "Saved to %s\n", path)
 	if c.Server == "" {
-		fmt.Fprintln(a.env.Stdout, "还没有服务端地址：用 --server URL 再运行一次 set-token，或设置 "+serverEnv)
+		fmt.Fprintln(a.env.Stdout, "No server address yet: run set-token again with --server URL, or set "+serverEnv)
 	}
-	fmt.Fprintln(a.env.Stdout, "运行 chatchat config check 检查")
+	fmt.Fprintln(a.env.Stdout, "Run chatchat config check to verify")
 	return nil
 }
 
@@ -115,13 +115,13 @@ func (a *app) cmdConfigCheck(args []string) error {
 	if s.configPath != "" {
 		report["config_path"] = s.configPath
 		if st, statErr := os.Stat(s.configPath); statErr == nil {
-			say("✓ 配置文件 %s", s.configPath)
+			say("✓ config file %s", s.configPath)
 			if st.Mode().Perm()&0o077 != 0 {
-				say("! 配置文件权限是 %o，建议改成 600：chmod 600 %s", st.Mode().Perm(), s.configPath)
+				say("! config file mode is %o; change it to 600: chmod 600 %s", st.Mode().Perm(), s.configPath)
 				report["config_mode"] = fmt.Sprintf("%o", st.Mode().Perm())
 			}
 		} else {
-			say("- 配置文件 %s 不存在", s.configPath)
+			say("- config file %s does not exist", s.configPath)
 		}
 	}
 	if err != nil {
@@ -135,7 +135,7 @@ func (a *app) cmdConfigCheck(args []string) error {
 		return finish(err)
 	}
 	report["server"], report["server_source"] = server, s.serverSource
-	say("✓ 服务端 %s（来自 %s）", server, s.serverSource)
+	say("✓ server %s (from %s)", server, s.serverSource)
 
 	token, tokenErr := s.requireToken()
 	cl, m, err := a.connect(server, bearerAuth(token))
@@ -144,7 +144,7 @@ func (a *app) cmdConfigCheck(args []string) error {
 		return finish(err)
 	}
 	report["protocol_version"], report["server_version"] = m.ProtocolVersion, m.ServerVersion
-	say("✓ 协议版本 %d 兼容（服务端 %s）", m.ProtocolVersion, m.ServerVersion)
+	say("✓ protocol version %d is compatible (server %s)", m.ProtocolVersion, m.ServerVersion)
 
 	if tokenErr != nil {
 		say("✗ %v", tokenErr)
@@ -156,7 +156,7 @@ func (a *app) cmdConfigCheck(args []string) error {
 		Email string `json:"email"`
 	}
 	if _, _, err := cl.call(a.ctx, "GET", "/api/v1/me", nil, nil, &me, requestTimeout); err != nil {
-		say("✗ 用户 token（来自 %s）：%v", s.tokenSource, err)
+		say("✗ user token (from %s): %v", s.tokenSource, err)
 		return finish(err)
 	}
 	report["user"] = me
@@ -164,7 +164,7 @@ func (a *app) cmdConfigCheck(args []string) error {
 	if me.Email != "" {
 		who += " <" + me.Email + ">"
 	}
-	say("✓ 用户 token 有效（来自 %s），用户 %s", s.tokenSource, who)
+	say("✓ user token is valid (from %s), user %s", s.tokenSource, who)
 	return finish(nil)
 }
 
@@ -182,23 +182,23 @@ func parseChatRef(ref string) (string, error) {
 		ref = ref[strings.LastIndex(ref, "/")+1:]
 	}
 	if !chatIDPattern.MatchString(ref) {
-		return "", usageErr("不是有效的 chat ID 或 chat 链接")
+		return "", usageErr("not a valid chat ID or chat link")
 	}
 	return ref, nil
 }
 
 func (a *app) cmdJoin(args []string) error {
-	fs := a.flags("join", "<chat_id 或链接> --name <显示名>")
-	name := fs.String("name", "", "显示名（必填），例如 \"Claude (重构讨论)\"")
+	fs := a.flags("join", "<chat_id or link> --name <display name>")
+	name := fs.String("name", "", "display name (required), e.g. \"Claude (API review)\"")
 	pos, err := parse(fs, args)
 	if err != nil {
 		return err
 	}
 	if len(pos) != 1 {
-		return usageErr("用法：chatchat join <chat_id 或链接> --name <显示名>")
+		return usageErr("usage: chatchat join <chat_id or link> --name <display name>")
 	}
 	if strings.TrimSpace(*name) == "" {
-		return usageErr("缺少 --name：给这个参与者起一个显示名")
+		return usageErr("missing --name: give this participant a display name")
 	}
 	chatID, err := parseChatRef(pos[0])
 	if err != nil {
@@ -234,21 +234,21 @@ func (a *app) cmdJoin(args []string) error {
 	writeJSONLine(a.env.Stdout, cred)
 
 	if path, err := a.historyPath(); err != nil {
-		fmt.Fprintf(a.env.Stderr, "chatchat: 没有写入本地历史：%v\n", err)
+		fmt.Fprintf(a.env.Stderr, "chatchat: local history not written: %v\n", err)
 	} else if err := appendHistory(path, historyEntry{
 		Server: server, ChatID: cred.ChatID, ParticipationID: cred.ParticipationID,
 		DisplayName: cred.DisplayName, JoinedAt: resp.JoinedAt,
 	}); err != nil {
-		fmt.Fprintf(a.env.Stderr, "chatchat: 没有写入本地历史：%v\n", err)
+		fmt.Fprintf(a.env.Stderr, "chatchat: local history not written: %v\n", err)
 	}
 	if !a.json {
-		fmt.Fprintln(a.env.Stderr, "已加入。上面一行是凭据行，只出现这一次：后续命令把它作为 stdin 第一行传入，不要发到 chat 里。")
+		fmt.Fprintln(a.env.Stderr, "Joined. The line above is the credential line and is shown only once: pass it as the first line of stdin to later commands, and never post it in the chat.")
 	}
 	return nil
 }
 
 func (a *app) cmdState(args []string) error {
-	fs := a.flags("state", "< 凭据行")
+	fs := a.flags("state", "< credential line")
 	if _, err := parse(fs, args); err != nil {
 		return err
 	}
@@ -270,14 +270,14 @@ func (a *app) cmdState(args []string) error {
 }
 
 func (a *app) cmdRead(args []string) error {
-	fs := a.flags("read", "[--after N] [--limit N] < 凭据行")
-	after := fs.Int64("after", 0, "读取 sequence 大于 N 的消息")
-	limit := fs.Int("limit", 0, "最多读取条数（默认由服务端决定）")
+	fs := a.flags("read", "[--after N] [--limit N] < credential line")
+	after := fs.Int64("after", 0, "read messages with sequence greater than N")
+	limit := fs.Int("limit", 0, "maximum number of messages (server default if unset)")
 	if _, err := parse(fs, args); err != nil {
 		return err
 	}
 	if *after < 0 || *limit < 0 {
-		return usageErr("--after 和 --limit 不能是负数")
+		return usageErr("--after and --limit must not be negative")
 	}
 	cl, c, err := a.participantClient()
 	if err != nil {
@@ -304,17 +304,17 @@ func (a *app) cmdRead(args []string) error {
 // server's cap on a single wait is covered by consecutive waits, each of
 // which renews the lease.
 func (a *app) cmdWait(args []string) error {
-	fs := a.flags("wait", "--after N [--timeout S] < 凭据行")
-	after := fs.Int64("after", 0, "等待 sequence 大于 N 的消息（必填）")
-	timeout := fs.Int("timeout", -1, "最多等待秒数（默认为服务端的单次等待上限，0 表示只检查一次）")
+	fs := a.flags("wait", "--after N [--timeout S] < credential line")
+	after := fs.Int64("after", 0, "wait for messages with sequence greater than N (required)")
+	timeout := fs.Int("timeout", -1, "seconds to wait at most (defaults to the server's single-wait cap; 0 checks once)")
 	if _, err := parse(fs, args); err != nil {
 		return err
 	}
 	if !visited(fs, "after") {
-		return usageErr("缺少 --after：传入已经读到的最后一条 sequence")
+		return usageErr("missing --after: pass the last sequence you have read")
 	}
 	if *after < 0 {
-		return usageErr("--after 不能是负数")
+		return usageErr("--after must not be negative")
 	}
 	cl, c, err := a.participantClient()
 	if err != nil {
@@ -354,14 +354,14 @@ func newRequestID() string {
 }
 
 func (a *app) cmdSend(args []string) error {
-	fs := a.flags("send", "[--text 正文] [--request-id ID] < 凭据行（第二行起是正文）")
-	text := fs.String("text", "", "消息正文；不给时从 stdin 第二行起读取")
-	requestID := fs.String("request-id", "", "client_request_id；重试失败的发送时传入上次打印的值")
+	fs := a.flags("send", "[--text TEXT] [--request-id ID] < credential line (message text from the second line)")
+	text := fs.String("text", "", "message text; read from the second line of stdin when not given")
+	requestID := fs.String("request-id", "", "client_request_id; when retrying a failed send, pass the value printed last time")
 	if _, err := parse(fs, args); err != nil {
 		return err
 	}
 	if visited(fs, "request-id") && (*requestID == "" || utf8.RuneCountInString(*requestID) > 64) {
-		return usageErr("--request-id 必须是 1–64 个字符")
+		return usageErr("--request-id must be 1-64 characters")
 	}
 	c, err := a.readCredential()
 	if err != nil {
@@ -369,17 +369,17 @@ func (a *app) cmdSend(args []string) error {
 	}
 	rest, err := io.ReadAll(a.stdin)
 	if err != nil {
-		return fmt.Errorf("读取 stdin 失败：%w", err)
+		return fmt.Errorf("could not read stdin: %w", err)
 	}
 	body := strings.TrimRight(string(rest), "\r\n")
 	if visited(fs, "text") {
 		if strings.TrimSpace(body) != "" {
-			return usageErr("正文只能二选一：--text 或 stdin 第二行起")
+			return usageErr("give the text either with --text or from the second line of stdin, not both")
 		}
 		body = *text
 	}
 	if strings.TrimSpace(body) == "" {
-		return usageErr("消息正文是空的：用 --text 或在 stdin 第二行起写正文")
+		return usageErr("the message text is empty: use --text or write it from the second line of stdin")
 	}
 	id := *requestID
 	if id == "" {
@@ -424,9 +424,9 @@ func (a *app) cmdSend(args []string) error {
 	}
 	note := ""
 	if status == 200 {
-		note = "（重复请求，返回已有消息）"
+		note = " (duplicate request; returned the existing message)"
 	}
-	fmt.Fprintf(a.env.Stdout, "已发送 #%d%s\n", m.Sequence, note)
+	fmt.Fprintf(a.env.Stdout, "Sent #%d%s\n", m.Sequence, note)
 	return nil
 }
 
@@ -440,8 +440,8 @@ func withRequestID(err error, id string) error {
 }
 
 func (a *app) cmdProposeEnd(args []string) error {
-	fs := a.flags("propose-end", "[--reason 理由] < 凭据行")
-	reason := fs.String("reason", "", "建议结束的理由（可选，最多 500 字）")
+	fs := a.flags("propose-end", "[--reason REASON] < credential line")
+	reason := fs.String("reason", "", "why to end the chat (optional, at most 500 characters)")
 	if _, err := parse(fs, args); err != nil {
 		return err
 	}
@@ -459,12 +459,12 @@ func (a *app) cmdProposeEnd(args []string) error {
 		a.printRaw(raw)
 		return nil
 	}
-	fmt.Fprintf(a.env.Stdout, "已建议结束 #%d，由创建者决定是否销毁\n", m.Sequence)
+	fmt.Fprintf(a.env.Stdout, "Proposed ending in #%d; the creator decides whether to destroy the chat\n", m.Sequence)
 	return nil
 }
 
 func (a *app) cmdLeave(args []string) error {
-	fs := a.flags("leave", "< 凭据行")
+	fs := a.flags("leave", "< credential line")
 	if _, err := parse(fs, args); err != nil {
 		return err
 	}
@@ -482,20 +482,20 @@ func (a *app) cmdLeave(args []string) error {
 	}
 	if path, err := a.historyPath(); err == nil {
 		if err := markLeft(path, c.ParticipationID, resp.LeftAt); err != nil {
-			fmt.Fprintf(a.env.Stderr, "chatchat: 没有更新本地历史：%v\n", err)
+			fmt.Fprintf(a.env.Stderr, "chatchat: local history not updated: %v\n", err)
 		}
 	}
 	if a.json {
 		a.printRaw(raw)
 		return nil
 	}
-	fmt.Fprintf(a.env.Stdout, "已退出 %s，这组凭据已失效\n", c.ParticipationID)
+	fmt.Fprintf(a.env.Stdout, "Left as %s; these credentials no longer work\n", c.ParticipationID)
 	return nil
 }
 
 func (a *app) cmdHistory(args []string) error {
 	fs := a.flags("history", "[--remote]")
-	remote := fs.Bool("remote", false, "查询服务端上的参与记录（需要用户 token）")
+	remote := fs.Bool("remote", false, "list participations recorded on the server (needs the user token)")
 	if _, err := parse(fs, args); err != nil {
 		return err
 	}
@@ -508,7 +508,7 @@ func (a *app) cmdHistory(args []string) error {
 	}
 	entries, err := readHistory(path)
 	if err != nil {
-		return fmt.Errorf("读取本地历史失败：%w", err)
+		return fmt.Errorf("could not read the local history: %w", err)
 	}
 	if a.json {
 		if entries == nil {
@@ -518,18 +518,18 @@ func (a *app) cmdHistory(args []string) error {
 		return nil
 	}
 	if len(entries) == 0 {
-		fmt.Fprintln(a.env.Stdout, "本地没有参与记录")
+		fmt.Fprintln(a.env.Stdout, "No local participations")
 		return nil
 	}
 	for _, e := range entries {
-		left := "未退出"
+		left := "not left"
 		if e.LeftAt != nil {
-			left = "退出于 " + localTime(*e.LeftAt)
+			left = "left " + localTime(*e.LeftAt)
 		}
-		fmt.Fprintf(a.env.Stdout, "%s  %s  %s  %s  加入于 %s  %s\n",
+		fmt.Fprintf(a.env.Stdout, "%s  %s  %s  %s  joined %s  %s\n",
 			e.ChatID, e.ParticipationID, e.DisplayName, e.Server, localTime(e.JoinedAt), left)
 	}
-	fmt.Fprintln(a.env.Stdout, "历史只用于查找和排查，不能恢复身份；继续参与需要重新 join")
+	fmt.Fprintln(a.env.Stdout, "History is for lookup and troubleshooting only and cannot restore an identity; join again to keep taking part")
 	return nil
 }
 
@@ -570,18 +570,18 @@ func (a *app) remoteHistory() error {
 		return nil
 	}
 	if len(resp.Participations) == 0 {
-		fmt.Fprintln(a.env.Stdout, "服务端没有你的参与记录")
+		fmt.Fprintln(a.env.Stdout, "The server has no participations of yours")
 		return nil
 	}
 	for _, p := range resp.Participations {
-		end := "未结束"
+		end := "active"
 		if p.EndReason != nil {
-			end = map[string]string{"left": "已退出", "chat_destroyed": "chat 已销毁"}[*p.EndReason]
+			end = map[string]string{"left": "left", "chat_destroyed": "chat destroyed"}[*p.EndReason]
 			if p.LeftAt != nil {
-				end += "（" + localTime(*p.LeftAt) + "）"
+				end += " (" + localTime(*p.LeftAt) + ")"
 			}
 		}
-		fmt.Fprintf(a.env.Stdout, "%s  %s  %s  %s  加入于 %s  %s\n",
+		fmt.Fprintf(a.env.Stdout, "%s  %s  %s  %s  joined %s  %s\n",
 			p.ChatID, p.ParticipationID, kindName(p.Kind), p.DisplayName, localTime(p.JoinedAt), end)
 	}
 	return nil

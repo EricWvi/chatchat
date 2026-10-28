@@ -235,13 +235,13 @@ func (s *Service) callback(w http.ResponseWriter, r *http.Request) {
 // session is left alone.
 func (s *Service) logout(w http.ResponseWriter, r *http.Request) {
 	if !s.SameOrigin(r) {
-		writeError(w, http.StatusForbidden, "untrusted_origin", "请求来源不受信任")
+		writeError(w, http.StatusForbidden, "untrusted_origin", "untrusted request origin")
 		return
 	}
 	if c, err := r.Cookie(sessionCookie); err == nil {
 		if err := s.store.DeleteSession(r.Context(), c.Value); err != nil {
 			slog.Error("delete session", "err", err)
-			writeError(w, http.StatusInternalServerError, "internal", "服务器内部错误")
+			writeError(w, http.StatusInternalServerError, "internal", "internal server error")
 			return
 		}
 	}

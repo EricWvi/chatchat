@@ -106,7 +106,7 @@ func (s *Store) WebParticipation(ctx context.Context, chatID string, userID int6
 // which exists only in this return value. Every call creates a new
 // identity; nothing is matched or reused.
 func (s *Store) Join(ctx context.Context, chatID string, userID int64, displayName string) (Participation, string, error) {
-	name, err := cleanLine("显示名", displayName, MaxDisplayName)
+	name, err := cleanLine("display_name", displayName, MaxDisplayName)
 	if err != nil {
 		return Participation{}, "", err
 	}

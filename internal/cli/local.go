@@ -43,7 +43,7 @@ func (a *app) xdgDir(env, fallback string) (string, error) {
 	}
 	home := a.env.Getenv("HOME")
 	if home == "" {
-		return "", &cliError{exit: exitError, code: "no_home", msg: fmt.Sprintf("HOME 和 %s 都没有设置，找不到本地文件目录", env)}
+		return "", &cliError{exit: exitError, code: "no_home", msg: fmt.Sprintf("neither HOME nor %s is set; cannot find the local file directory", env)}
 	}
 	return filepath.Join(home, fallback, "chatchat"), nil
 }
@@ -65,11 +65,11 @@ func loadConfig(path string) (fileConfig, error) {
 	if errors.Is(err, fs.ErrNotExist) {
 		return c, nil
 	} else if err != nil {
-		return c, &cliError{exit: exitError, code: "config", msg: "读取配置文件失败：" + err.Error()}
+		return c, &cliError{exit: exitError, code: "config", msg: "could not read the config file: " + err.Error()}
 	}
 	if err := yaml.Unmarshal(b, &c); err != nil {
 		// The YAML error may quote the file, which holds the token.
-		return c, &cliError{exit: exitError, code: "config", msg: "配置文件 " + path + " 不是有效的 YAML"}
+		return c, &cliError{exit: exitError, code: "config", msg: "config file " + path + " is not valid YAML"}
 	}
 	return c, nil
 }
@@ -152,8 +152,8 @@ func (a *app) settings() (settings, error) {
 func (s settings) requireServer() (string, error) {
 	if s.server == "" {
 		return "", &cliError{
-			exit: exitError, code: "no_server", msg: "没有配置服务端地址",
-			hint: fmt.Sprintf("用 --server、%s 指定，或写进 %s 的 server 字段", serverEnv, s.configPath),
+			exit: exitError, code: "no_server", msg: "no server address configured",
+			hint: fmt.Sprintf("set it with --server or %s, or in the server field of %s", serverEnv, s.configPath),
 		}
 	}
 	return normalizeServer(s.server)
@@ -163,8 +163,8 @@ func (s settings) requireServer() (string, error) {
 func (s settings) requireToken() (string, error) {
 	if s.token == "" {
 		return "", &cliError{
-			exit: exitCredentials, code: "no_token", msg: "没有配置用户 token",
-			hint: "在网站生成用户 token，用 chatchat config set-token 保存，或设置 " + tokenEnv,
+			exit: exitCredentials, code: "no_token", msg: "no user token configured",
+			hint: "create a user token on the website and save it with chatchat config set-token, or set " + tokenEnv,
 		}
 	}
 	return s.token, nil
@@ -175,7 +175,7 @@ func normalizeServer(raw string) (string, error) {
 	u, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" ||
 		u.User != nil || u.RawQuery != "" || u.Fragment != "" {
-		return "", &cliError{exit: exitUsage, code: "usage", msg: "服务端地址必须是 http(s)://host[:port] 形式的 URL"}
+		return "", &cliError{exit: exitUsage, code: "usage", msg: "the server address must be a URL like http(s)://host[:port]"}
 	}
 	return strings.TrimRight(u.String(), "/"), nil
 }
@@ -193,7 +193,7 @@ type credential struct {
 func credentialErr(msg string) error {
 	return &cliError{
 		exit: exitCredentials, code: "invalid_credential_line", msg: msg,
-		hint: "把 join 输出的凭据行原样作为 stdin 第一行传入",
+		hint: "pass the credential line printed by join, unchanged, as the first line of stdin",
 	}
 }
 
@@ -221,27 +221,27 @@ func (a *app) readLine() (string, error) {
 func (a *app) readCredential() (credential, error) {
 	var c credential
 	if isTerminal(a.env.Stdin) {
-		return c, credentialErr("需要从 stdin 第一行传入凭据行，不能从终端交互输入")
+		return c, credentialErr("the credential line must come as the first line of stdin, not typed at a terminal")
 	}
 	line, err := a.readLine()
 	if err != nil {
-		return c, credentialErr("读取 stdin 失败")
+		return c, credentialErr("could not read stdin")
 	}
 	line = strings.TrimSpace(line)
 	if line == "" {
-		return c, credentialErr("stdin 第一行是空的，没有凭据行")
+		return c, credentialErr("the first line of stdin is empty; no credential line")
 	}
 	dec := json.NewDecoder(strings.NewReader(line))
 	if err := dec.Decode(&c); err != nil {
-		return c, credentialErr("stdin 第一行不是有效的凭据 JSON")
+		return c, credentialErr("the first line of stdin is not valid credential JSON")
 	}
 	switch {
 	case c.ChatID == "" || c.ParticipationID == "" || c.Secret == "":
-		return c, credentialErr("凭据行缺少 chat_id、participation_id 或 participation_secret")
+		return c, credentialErr("the credential line is missing chat_id, participation_id or participation_secret")
 	case strings.HasPrefix(c.Secret, userTokenPrefix):
 		return c, &cliError{
-			exit: exitCredentials, code: "wrong_credential_type", msg: "participation_secret 填的是用户 token",
-			hint: "参与者命令用 join 输出的凭据行，不能用用户 token",
+			exit: exitCredentials, code: "wrong_credential_type", msg: "participation_secret holds a user token",
+			hint: "participant commands take the credential line from join, not the user token",
 		}
 	}
 	return c, nil

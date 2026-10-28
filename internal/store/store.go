@@ -136,13 +136,13 @@ func hashMatches(secret, hash string) bool {
 func cleanLine(field, s string, max int) (string, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
-		return "", invalid(field + "不能为空")
+		return "", invalid(field + " must not be empty")
 	}
 	if utf8.RuneCountInString(s) > max {
-		return "", invalid(fmt.Sprintf("%s最多 %d 个字符", field, max))
+		return "", invalid(fmt.Sprintf("%s must be at most %d characters", field, max))
 	}
 	if strings.ContainsFunc(s, unicode.IsControl) {
-		return "", invalid(field + "不能包含换行或控制字符")
+		return "", invalid(field + " must not contain line breaks or control characters")
 	}
 	return s, nil
 }
