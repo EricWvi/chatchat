@@ -15,7 +15,7 @@ config values or environment variables that may hold them.
 - Go gofmt check and vet: `task lint:go`; frontend typecheck: `task lint:frontend`
 - Go tests: `task test:go`
 - All lint and unit tests (includes `task test:scripts` for the release scripts): `task test`
-- Releases: pushing a `v*` tag runs `.github/workflows/release-cli.yml` (CLI) and `.github/workflows/release-image.yml` (server image on GHCR; never build images locally). Deployment steps: `docs/deploy.md`
+- Releases: pushing a `v*` tag runs `.github/workflows/release-cli.yml` (CLI) and `.github/workflows/release-image.yml` (server image on GHCR; never build images locally).
 - Authelia contract test (needs a container socket and local images): `task test:contract`
 - Release binaries (static, `CGO_ENABLED=0`): `task build`, or one of `task build:server` (builds and embeds the frontend) / `task build:cli`
 - Local server with `config.yaml` (set `dev_user` to skip OIDC): `task run:server`

@@ -109,9 +109,8 @@
 
 - [x] 镜像构建：`Dockerfile` + `.github/workflows/release-image.yml`，`v*` tag 或手动触发，发布 `ghcr.io/ericwvi/chatchat:<版本>` 和 `latest`（linux/amd64、arm64）；构建中跑前端类型检查、嵌入检查（`scripts/check-embed.sh`）和 `go test`
 - [x] dotfiles：Compose 服务 `chatchat`（镜像 `0.1.1`、数据目录、只读配置、两个密钥环境变量）、Caddy 站点、frpc 脱敏副本加 `chatchat` 代理
-- [x] 部署手册 `docs/deploy.md`：服务器目录与权限、`config.yaml`、`.env`、Authelia client、frpc、上线核对
-- [ ] 发布 v0.1.1（第一版镜像），确认 GHCR 包可匿名拉取
-- [ ] 服务器上按 `docs/deploy.md` 准备并启动（Eric 操作）
+- [x] 发布 v0.1.1（第一版镜像）；GHCR 新建的包默认私有，手动改成了 Public
+- [x] 服务器上准备目录、配置、密钥、Authelia client、frpc 并启动（Eric 操作）；`/api/v1/meta` 返回 `server_version: v0.1.1`，`/agent.md` 的地址正确
 - [ ] 上线核对：内网和 WireGuard 下登录、`/agent.md`、生成 token 后 `config set-token` / `check`、网页与 CLI 互发、真实 DeepSeek 摘要效果
 - [ ] 让一个全新的 Agent session 只凭 `/agent.md` 加入试一次
 - [x] CLI 发布与安装方式：推送 `v*` tag 由 `.github/workflows/release-cli.yml` 交叉编译 5 个平台，发布 GitHub Release，附带 `SHA256SUMS` 和 `latest.json`（同 palace）；agent.md 给出按 `latest.json` 选包、校验、安装的命令
@@ -120,7 +119,7 @@
 - [ ] Windows 的运行中替换尚无实测
 - 注意：新仓库第一次推送时，workflow 文件和 tag 同一次到达不会触发 Actions，v0.1.0 是在 upstream 重推 tag 后才触发的
 
-实现中定下的细节（已写进 `docs/design.md` 和 `docs/deploy.md`）：
+实现中定下的细节（已写进 `docs/design.md`）：
 - 镜像版本是 tag 去掉 `v`，服务端 `-X main.version` 用 `v<版本>`，与同 tag 的 CLI 一致；预发布版不移动 `latest`。
 - 运行镜像 distroless `static-debian12:nonroot`（uid 65532），服务器目录 `chown -R 65532:65532`，同 tingxie。
 - 摘要模型用 `deepseek-flash` 默认参数（不关思考），`limits` 用默认值。
