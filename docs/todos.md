@@ -103,15 +103,28 @@
 - 端到端用真实二进制（服务端 dev_user 模式 + 假模型，摘要阈值 3）和 Playwright 驱动网站，Agent session 各用独立 HOME，凭据只在驱动进程内存里；脚本在 `.tmp/e2e/run.sh`（未入库），57 项检查全部通过，覆盖需求第九节 1–10，另直接查 SQLite 确认销毁后消息和摘要已删除、库里没有明文 secret。
 - Vite 开发服务器把 `/agent.md` 也代理到后端。
 
-## 阶段 6：部署（待细化）
+## 阶段 6：部署
 
-- [ ] 镜像构建（GitHub Actions 发布 GHCR，不在本地构建）
-- [ ] Compose 服务、Caddy 站点、Authelia OIDC client、模型 key 等密钥配置
+已确认：站点 `chatchat.onlyquant.top`；服务端镜像和 CLI 用同一个 `v*` tag 发版（两个 workflow）；Authelia client 的 `authorization_policy` 与 tingxie 一致；部署配置直接改 dotfiles。
+
+- [x] 镜像构建：`Dockerfile` + `.github/workflows/release-image.yml`，`v*` tag 或手动触发，发布 `ghcr.io/ericwvi/chatchat:<版本>` 和 `latest`（linux/amd64、arm64）；构建中跑前端类型检查、嵌入检查（`scripts/check-embed.sh`）和 `go test`
+- [x] dotfiles：Compose 服务 `chatchat`（镜像 `0.1.1`、数据目录、只读配置、两个密钥环境变量）、Caddy 站点、frpc 脱敏副本加 `chatchat` 代理
+- [x] 部署手册 `docs/deploy.md`：服务器目录与权限、`config.yaml`、`.env`、Authelia client、frpc、上线核对
+- [ ] 发布 v0.1.1（第一版镜像），确认 GHCR 包可匿名拉取
+- [ ] 服务器上按 `docs/deploy.md` 准备并启动（Eric 操作）
+- [ ] 上线核对：内网和 WireGuard 下登录、`/agent.md`、生成 token 后 `config set-token` / `check`、网页与 CLI 互发、真实 DeepSeek 摘要效果
+- [ ] 让一个全新的 Agent session 只凭 `/agent.md` 加入试一次
 - [x] CLI 发布与安装方式：推送 `v*` tag 由 `.github/workflows/release-cli.yml` 交叉编译 5 个平台，发布 GitHub Release，附带 `SHA256SUMS` 和 `latest.json`（同 palace）；agent.md 给出按 `latest.json` 选包、校验、安装的命令
 - [x] `chatchat update`：同 `pal update`，读 `latest.json`、校验版本 / 平台 / 固定 URL / SHA-256 后原子替换当前程序，保留权限；不读配置、不发凭据（`internal/cli/update_test.go`）
 - [x] 首次发布 CLI 后核对：v0.1.0 的 5 个平台包、`SHA256SUMS`、`latest.json` 齐全；agent.md 的安装命令、`SHA256SUMS` 校验和 `chatchat update` 在 Linux 上走通
 - [ ] Windows 的运行中替换尚无实测
 - 注意：新仓库第一次推送时，workflow 文件和 tag 同一次到达不会触发 Actions，v0.1.0 是在 upstream 重推 tag 后才触发的
+
+实现中定下的细节（已写进 `docs/design.md` 和 `docs/deploy.md`）：
+- 镜像版本是 tag 去掉 `v`，服务端 `-X main.version` 用 `v<版本>`，与同 tag 的 CLI 一致；预发布版不移动 `latest`。
+- 运行镜像 distroless `static-debian12:nonroot`（uid 65532），服务器目录 `chown -R 65532:65532`，同 tingxie。
+- 摘要模型用 `deepseek-flash` 默认参数（不关思考），`limits` 用默认值。
+- 不加 `extra_hosts`，容器经宿主机访问 `auth.onlyquant.top`，同 tingxie。
 
 ## 后续（动态调整）
 

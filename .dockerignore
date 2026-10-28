@@ -1,0 +1,13 @@
+.git
+.github
+**/node_modules
+frontend/dist
+release
+data
+.data
+memories
+*.log
+config.yaml
+.env
+.env.*
+.tmp
